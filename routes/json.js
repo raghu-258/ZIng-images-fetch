@@ -1,9 +1,133 @@
 const express = require('express');
 const multer  = require('multer');
 const XLSX    = require('xlsx');
+const fetch   = require('node-fetch');
 const router  = express.Router();
 
 const upload = multer({ dest: 'uploads/' });
+
+// ════════════════════════════════════════════════════
+// SHOPIFY METAFIELD HELPERS
+// ════════════════════════════════════════════════════
+const SHOPIFY_STORE = process.env.SHOPIFY_STORE;
+const SHOPIFY_TOKEN = process.env.SHOPIFY_TOKEN;
+const API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-01';
+
+async function getProductIdBySku(sku) {
+  try {
+    const query = `
+      query {
+        products(first: 1, query: "sku:'${sku}'") {
+          edges {
+            node {
+              id
+              title
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await fetch(`https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': SHOPIFY_TOKEN,
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const data = await response.json();
+    if (data.errors) throw new Error(JSON.stringify(data.errors));
+    
+    const product = data.data?.products?.edges?.[0]?.node;
+    return product?.id || null;
+  } catch (err) {
+    console.error(`[METAFIELD] Error fetching product for SKU "${sku}":`, err.message);
+    return null;
+  }
+}
+
+async function updateProductMetafield(productId, imageUrls) {
+  try {
+    const mutation = `
+      mutation {
+        metafieldsSet(metafields: [{
+          ownerId: "${productId}"
+          namespace: "custom"
+          key: "gallery_images"
+          type: "json"
+          value: "${JSON.stringify(imageUrls).replace(/"/g, '\\"')}"
+        }]) {
+          metafields {
+            id
+            namespace
+            key
+            value
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const response = await fetch(`https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': SHOPIFY_TOKEN,
+      },
+      body: JSON.stringify({ mutation }),
+    });
+
+    const data = await response.json();
+    if (data.errors) throw new Error(JSON.stringify(data.errors));
+    
+    const userErrors = data.data?.metafieldsSet?.userErrors;
+    if (userErrors && userErrors.length > 0) {
+      console.error(`[METAFIELD] Shopify errors:`, userErrors);
+      return false;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error(`[METAFIELD] Error updating metafield:`, err.message);
+    return false;
+  }
+}
+
+async function postToMetafields(imageMap) {
+  if (!SHOPIFY_STORE || !SHOPIFY_TOKEN) {
+    console.warn('[METAFIELD] ⚠ SHOPIFY_STORE or SHOPIFY_TOKEN not configured. Skipping metafield posting.');
+    return { successful: 0, failed: 0, skipped: 0 };
+  }
+
+  const results = { successful: 0, failed: 0, skipped: 0 };
+
+  for (const [sku, urls] of Object.entries(imageMap)) {
+    console.log(`[METAFIELD] Processing SKU: ${sku} (${urls.length} URLs)`);
+    
+    const productId = await getProductIdBySku(sku);
+    if (!productId) {
+      console.warn(`[METAFIELD] ⚠ Product not found for SKU: ${sku}`);
+      results.skipped++;
+      continue;
+    }
+
+    const success = await updateProductMetafield(productId, urls);
+    if (success) {
+      console.log(`[METAFIELD] ✓ Successfully updated metafield for SKU: ${sku}`);
+      results.successful++;
+    } else {
+      console.error(`[METAFIELD] ✗ Failed to update metafield for SKU: ${sku}`);
+      results.failed++;
+    }
+  }
+
+  return results;
+}
 
 function normalizeShopifyUrl(url) {
   if (!url) return null;
@@ -18,11 +142,12 @@ function isShopifyCdnUrl(url) {
 /* ════════════════════════════════════════════════════
    POST /api/json/from-sheet
    Multipart: file (xlsx with Shopify URLs filled)
+   Body: { keyMode, postToMetafield }
 ════════════════════════════════════════════════════ */
-router.post('/from-sheet', upload.single('file'), (req, res) => {
+router.post('/from-sheet', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  const { keyMode = 'altbase', strictCDN = false } = req.body;
+  const { keyMode = 'altbase', strictCDN = false, postToMetafield = false } = req.body;
 
   const wb = XLSX.readFile(req.file.path);
   const ws = wb.Sheets['Images'];
@@ -73,15 +198,26 @@ router.post('/from-sheet', upload.single('file'), (req, res) => {
   });
 
   if (skipped > 0) console.warn(`[JSON] Skipped ${skipped} rows with no valid URL`);
-  res.json(map);
+
+  // Post to metafields if requested
+  let metafieldResults = null;
+  if (postToMetafield) {
+    console.log('[JSON] 📤 Posting to Shopify metafields...');
+    metafieldResults = await postToMetafields(map);
+  }
+
+  res.json({
+    data: map,
+    metafield: metafieldResults
+  });
 });
 
 /* ════════════════════════════════════════════════════
    POST /api/json/from-results
-   Body: { results: [{ sku, view, url, shopifyUrl, altText }], keyMode }
+   Body: { results: [{ sku, view, url, shopifyUrl, altText }], keyMode, postToMetafield }
 ════════════════════════════════════════════════════ */
-router.post('/from-results', (req, res) => {
-  const { results = [], keyMode = 'altbase', strictCDN = true } = req.body;  // FORCE Shopify URLs
+router.post('/from-results', async (req, res) => {
+  const { results = [], keyMode = 'altbase', strictCDN = true, postToMetafield = false } = req.body;  // FORCE Shopify URLs
   const map = {};
   let skipped = 0;
 
@@ -118,7 +254,18 @@ router.post('/from-results', (req, res) => {
   });
 
   if (skipped > 0) console.warn(`[JSON] Skipped ${skipped} results with no valid URL`);
-  res.json(map);
+
+  // Post to metafields if requested
+  let metafieldResults = null;
+  if (postToMetafield) {
+    console.log('[JSON] 📤 Posting to Shopify metafields...');
+    metafieldResults = await postToMetafields(map);
+  }
+
+  res.json({
+    data: map,
+    metafield: metafieldResults
+  });
 });
 
 module.exports = router;
