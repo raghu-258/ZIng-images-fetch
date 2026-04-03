@@ -145,6 +145,27 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
 @keyframes fadeUp{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
 ::-webkit-scrollbar{width:3px;height:3px;}
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:99px;}
+.mode-tabs{display:flex;gap:4px;margin-bottom:18px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:4px;}
+.mode-tab{flex:1;padding:7px 12px;border:none;border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--t2);background:none;transition:all .15s;}
+.mode-tab:hover{color:var(--text);}
+.mode-tab.active{background:var(--s3);color:var(--text);}
+.local-dropzone{border:2px dashed var(--b2);border-radius:var(--r2);padding:28px;text-align:center;cursor:pointer;transition:all .15s;margin-bottom:14px;}
+.local-dropzone:hover,.local-dropzone.drag{border-color:var(--blue);background:rgba(76,201,240,0.04);}
+.local-dropzone input[type=file]{display:none;}
+.local-img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px;}
+.local-img-card{background:var(--s2);border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative;}
+.local-img-card img{width:100%;aspect-ratio:1;object-fit:contain;background:#fff;display:block;}
+.local-img-fields{padding:9px 10px;display:flex;flex-direction:column;gap:6px;}
+.local-img-field label{font-size:9px;color:var(--t3);font-family:var(--mono);display:block;margin-bottom:2px;}
+.local-img-field input{width:100%;padding:5px 7px;background:var(--s3);border:1px solid var(--b2);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:10px;outline:none;transition:border .15s;}
+.local-img-field input:focus{border-color:var(--blue);}
+.local-img-remove{position:absolute;top:5px;right:5px;width:20px;height:20px;background:rgba(0,0,0,0.6);border:none;border-radius:50%;color:var(--t2);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;line-height:1;}
+.local-img-remove:hover{background:var(--red);color:#fff;}
+.local-results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:14px;}
+.local-result-card{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;font-family:var(--mono);font-size:10px;}
+.local-result-card.ok{border-color:rgba(0,229,160,0.3);}
+.local-result-card.fail{border-color:rgba(255,77,109,0.3);}
+.local-result-url{word-break:break-all;color:var(--blue);margin-top:4px;font-size:9px;}
 </style>
 </head>
 <body>
@@ -228,45 +249,101 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
     </div>
   </div>
   <div class="panel" id="panel-3">
-    <div class="page-header"><div class="page-title">Upload to Shopify Files</div></div>
+    <div class="page-header"><div class="page-title">Upload to Shopify Files</div><div class="page-sub">Upload via Excel sheet or directly from local images</div></div>
     <div class="content">
-      <div class="box">
-        <div class="box-title"><span class="dot s"></span> Upload Excel Sheet</div>
-        <label class="dropzone" id="dropzone" onclick="document.getElementById('sheet-file').click()">
-          <div class="dropzone-icon">📂</div>
-          <div class="dropzone-title">Drop your filled Excel sheet here</div>
-          <div class="dropzone-file-name" id="dz-filename"></div>
-          <input type="file" id="sheet-file" accept=".xlsx" onchange="onFileSelect(event)">
-        </label>
-        <div class="row row-3" style="margin-bottom:12px">
-          <div class="field-full">
-            <label>Upload batch size</label>
-            <input type="number" id="batch-size" min="1" max="30" value="5" style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;">
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-sheet" onclick="switchUploadMode('sheet')">📋 From Excel Sheet</button>
+        <button class="mode-tab" id="tab-local" onclick="switchUploadMode('local')">🖼 Local Images</button>
+      </div>
+
+      <!-- ── FROM SHEET MODE ── -->
+      <div id="sheet-mode">
+        <div class="box">
+          <div class="box-title"><span class="dot s"></span> Upload Excel Sheet</div>
+          <label class="dropzone" id="dropzone" onclick="document.getElementById('sheet-file').click()">
+            <div class="dropzone-icon">📂</div>
+            <div class="dropzone-title">Drop your filled Excel sheet here</div>
+            <div class="dropzone-file-name" id="dz-filename"></div>
+            <input type="file" id="sheet-file" accept=".xlsx" onchange="onFileSelect(event)">
+          </label>
+          <div class="row row-3" style="margin-bottom:12px">
+            <div class="field-full">
+              <label>Upload batch size</label>
+              <input type="number" id="batch-size" min="1" max="30" value="5" style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;">
+            </div>
+            <div class="field-full" style="align-self:flex-end"><small style="color:var(--t3);">Recommended 4-8 for 70+ images</small></div>
           </div>
-          <div class="field-full" style="align-self:flex-end"><small style="color:var(--t3);">Recommended 4-8 for 70+ images</small></div>
+          <div class="btn-group">
+            <button class="btn btn-shopify" id="upload-btn" onclick="runUpload()" disabled>Upload to Shopify</button>
+            <button class="btn btn-ghost btn-sm" id="save-sheet-btn" onclick="saveUpdatedSheet()" style="display:none">⬇ Save updated sheet</button>
+          </div>
         </div>
-        <div class="btn-group">
-          <button class="btn btn-shopify" id="upload-btn" onclick="runUpload()" disabled>Upload to Shopify</button>
-          <button class="btn btn-ghost btn-sm" id="save-sheet-btn" onclick="saveUpdatedSheet()" style="display:none">⬇ Save updated sheet</button>
+        <div class="progress-box" id="upload-progress" style="display:none">
+          <div class="progress-head"><span class="progress-label" id="upload-prog-label">Uploading…</span><span class="progress-label" id="upload-prog-pct">0%</span></div>
+          <div class="progress-track"><div class="progress-fill shopify" id="upload-prog-fill" style="width:0%"></div></div>
+          <div class="log" id="upload-log"></div>
+        </div>
+        <div class="stats" id="upload-stats" style="display:none">
+          <div class="stat"><div class="stat-n s" id="up-ok">0</div><div class="stat-l">Uploaded</div></div>
+          <div class="stat"><div class="stat-n r" id="up-err">0</div><div class="stat-l">Errors</div></div>
+          <div class="stat"><div class="stat-n b" id="up-total">0</div><div class="stat-l">Total</div></div>
+          <div class="stat"><div class="stat-n g" id="up-pct">—</div><div class="stat-l">Success rate</div></div>
+        </div>
+        <div id="upload-complete-actions" style="display:none;margin-top:20px">
+          <div style="background:rgba(0,229,160,0.07);border:1px solid rgba(0,229,160,0.2);border-radius:8px;padding:16px;margin-bottom:14px">
+            <div style="font-size:11px;color:#7a7d88;margin-bottom:10px">✓ Upload complete! Next steps:</div>
+            <div class="btn-group" style="margin:0">
+              <button class="btn btn-shopify" onclick="downloadSheetWithShopifyUrls()">⬇ Sheet with URLs</button>
+              <button class="btn btn-green" onclick="goToJsonGeneration()">→ Generate JSON now</button>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="progress-box" id="upload-progress" style="display:none">
-        <div class="progress-head"><span class="progress-label" id="upload-prog-label">Uploading…</span><span class="progress-label" id="upload-prog-pct">0%</span></div>
-        <div class="progress-track"><div class="progress-fill shopify" id="upload-prog-fill" style="width:0%"></div></div>
-        <div class="log" id="upload-log"></div>
-      </div>
-      <div class="stats" id="upload-stats" style="display:none">
-        <div class="stat"><div class="stat-n s" id="up-ok">0</div><div class="stat-l">Uploaded</div></div>
-        <div class="stat"><div class="stat-n r" id="up-err">0</div><div class="stat-l">Errors</div></div>
-        <div class="stat"><div class="stat-n b" id="up-total">0</div><div class="stat-l">Total</div></div>
-        <div class="stat"><div class="stat-n g" id="up-pct">—</div><div class="stat-l">Success rate</div></div>
-      </div>
-      <div id="upload-complete-actions" style="display:none;margin-top:20px">
-        <div style="background:rgba(0,229,160,0.07);border:1px solid rgba(0,229,160,0.2);border-radius:8px;padding:16px;margin-bottom:14px">
-          <div style="font-size:11px;color:#7a7d88;margin-bottom:10px">✓ Upload complete! Next steps:</div>
-          <div class="btn-group" style="margin:0">
-            <button class="btn btn-shopify" onclick="downloadSheetWithShopifyUrls()">⬇ Sheet with URLs</button>
-            <button class="btn btn-green" onclick="goToJsonGeneration()">→ Generate JSON now</button>
+
+      <!-- ── LOCAL IMAGES MODE ── -->
+      <div id="local-mode" style="display:none">
+        <div class="box">
+          <div class="box-title"><span class="dot b"></span> Upload Local Images</div>
+          <label class="local-dropzone" id="local-dropzone" onclick="document.getElementById('local-files').click()">
+            <div class="dropzone-icon">🖼</div>
+            <div class="dropzone-title">Drop images here or click to select</div>
+            <div class="dropzone-sub">JPEG · PNG · WebP · GIF — up to 50 images, 20 MB each</div>
+            <input type="file" id="local-files" accept="image/jpeg,image/png,image/webp,image/gif" multiple onchange="onLocalFilesSelect(event)">
+          </label>
+          <div id="local-img-grid" class="local-img-grid" style="display:none"></div>
+          <div class="btn-group" id="local-btn-group" style="display:none">
+            <button class="btn btn-shopify" id="local-upload-btn" onclick="runLocalUpload()">Upload to Shopify</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearLocalImages()">Clear all</button>
+          </div>
+        </div>
+        <div class="progress-box" id="local-progress" style="display:none">
+          <div class="progress-head"><span class="progress-label" id="local-prog-label">Uploading…</span><span class="progress-label" id="local-prog-pct">0%</span></div>
+          <div class="progress-track"><div class="progress-fill" id="local-prog-fill" style="width:0%;background:var(--blue)"></div></div>
+          <div class="log" id="local-log"></div>
+        </div>
+        <div class="stats" id="local-stats" style="display:none">
+          <div class="stat"><div class="stat-n b" id="loc-ok">0</div><div class="stat-l">Uploaded</div></div>
+          <div class="stat"><div class="stat-n" style="color:var(--red)" id="loc-err">0</div><div class="stat-l">Errors</div></div>
+          <div class="stat"><div class="stat-n" id="loc-total">0</div><div class="stat-l">Total</div></div>
+          <div class="stat"><div class="stat-n g" id="loc-pct">—</div><div class="stat-l">Success rate</div></div>
+        </div>
+        <div id="local-results-grid" class="local-results-grid" style="display:none"></div>
+        <div id="local-json-actions" style="display:none;margin-top:16px">
+          <div style="background:rgba(0,229,160,0.07);border:1px solid rgba(0,229,160,0.2);border-radius:8px;padding:16px">
+            <div style="font-size:11px;color:#7a7d88;margin-bottom:10px">✓ Upload complete! Generate metafield JSON from uploaded images:</div>
+            <div class="btn-group" style="margin:0">
+              <button class="btn btn-green" onclick="goToLocalJSON()">→ Generate JSON</button>
+            </div>
+          </div>
+          <div class="box" id="local-json-box" style="display:none;margin-top:16px">
+            <div class="box-title" style="justify-content:space-between">
+              <div><span class="dot b"></span> Metafield JSON (Local Images)</div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="copyLocalJSON()">Copy</button>
+                <button class="btn btn-ghost btn-sm" onclick="downloadLocalJSON()">⬇ .json</button>
+              </div>
+            </div>
+            <div class="json-out" id="local-json-out"></div>
           </div>
         </div>
       </div>
@@ -281,7 +358,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
           <strong>⚠ Shopify URLs Missing!</strong><br>Some images don't have valid Shopify URLs. Only images with Shopify URLs will be included in the JSON. <button class="btn btn-ghost btn-sm" onclick="reviewShopifyUrls()" style="margin-top:8px">Review sheet</button>
         </div>
         <div class="row row-2">
-          <div class="field-full"><label>Source</label><select id="json-source"><option value="upload">From uploaded sheet</option><option value="probe">From probe results</option></select></div>
+          <div class="field-full"><label>Source</label><select id="json-source"><option value="upload">From uploaded sheet</option><option value="probe">From probe results</option><option value="local">From local image upload</option></select></div>
           <div class="field-full" style="display:flex;align-items:flex-end;gap:10px;">
             <button class="btn btn-green btn-full" onclick="generateJSON()">Generate JSON</button>
           </div>
@@ -305,7 +382,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
 <div class="toast" id="toast"></div>
 
 <script>
-const S = { skus: [], probeResults: [], uploadedRows: [], jsonData: {}, uploadedFile: null };
+const S = { skus: [], probeResults: [], uploadedRows: [], jsonData: {}, uploadedFile: null, localResults: [], localJsonData: {} };
 
 function goPanel(n) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -563,7 +640,27 @@ async function generateJSON() {
   const source = document.getElementById('json-source').value;
   let data;
 
-  if (source === 'probe') {
+  if (source === 'local') {
+    if (!S.localResults.length) { showToast('Upload local images first'); return; }
+    const withUrls = S.localResults.filter(r => r.shopifyUrl);
+    if (!withUrls.length) { showToast('No images with Shopify URLs'); return; }
+    const res = await fetch('/api/json/from-results', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        results: S.localResults.map(r => ({
+          sku: r.sku,
+          view: 1,
+          url: r.originalName,
+          shopifyUrl: r.shopifyUrl || null,
+          altText: r.alt,
+        })),
+        keyMode: 'sku',
+        strictCDN: true,
+      }),
+    });
+    data = await res.json();
+  } else if (source === 'probe') {
     if (!S.probeResults.length) { showToast('Probe images first'); return; }
     showToast('⚠ Using probe results only (no Shopify URLs available)');
     const res = await fetch('/api/json/from-results', {
@@ -654,6 +751,224 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+/* ─── LOCAL JSON ─── */
+async function goToLocalJSON() {
+  if (!S.localResults.length) { showToast('No local results yet'); return; }
+  const withUrls = S.localResults.filter(r => r.shopifyUrl);
+  if (!withUrls.length) { showToast('No images have Shopify URLs yet'); return; }
+
+  const res = await fetch('/api/json/from-results', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      results: S.localResults.map(r => ({
+        sku: r.sku,
+        view: 1,
+        url: r.originalName,
+        shopifyUrl: r.shopifyUrl || null,
+        altText: r.alt,
+      })),
+      keyMode: 'sku',
+      strictCDN: true,
+    }),
+  });
+  const data = await res.json();
+  if (!data || data.error) { showToast(data?.error || 'Failed'); return; }
+
+  S.localJsonData = data;
+  const kc = Object.keys(data).length;
+  if (!kc) { showToast('No images with valid Shopify URLs'); return; }
+
+  document.getElementById('local-json-box').style.display = 'block';
+  document.getElementById('local-json-out').innerHTML = syntaxHL(JSON.stringify(data, null, 2));
+  showToast(`✓ JSON generated — ${kc} key(s)`);
+}
+
+function copyLocalJSON() {
+  navigator.clipboard.writeText(JSON.stringify(S.localJsonData, null, 2)).then(() => showToast('Copied!'));
+}
+
+function downloadLocalJSON() {
+  dlBlob(new Blob([JSON.stringify(S.localJsonData, null, 2)], { type: 'application/json' }), 'local-images-metafield.json');
+}
+
+/* ─── LOCAL IMAGE UPLOAD ─── */
+let localFiles = []; // Array of { file, objectUrl, sku, alt }
+
+function switchUploadMode(mode) {
+  document.getElementById('sheet-mode').style.display = mode === 'sheet' ? 'block' : 'none';
+  document.getElementById('local-mode').style.display = mode === 'local' ? 'block' : 'none';
+  document.getElementById('tab-sheet').classList.toggle('active', mode === 'sheet');
+  document.getElementById('tab-local').classList.toggle('active', mode === 'local');
+}
+
+function onLocalFilesSelect(e) {
+  const newFiles = Array.from(e.target.files);
+  newFiles.forEach(f => {
+    localFiles.push({ file: f, objectUrl: URL.createObjectURL(f), sku: '', alt: '' });
+  });
+  e.target.value = ''; // allow re-selecting same files
+  renderLocalGrid();
+}
+
+const localDz = document.getElementById('local-dropzone');
+localDz.addEventListener('dragover', e => { e.preventDefault(); localDz.classList.add('drag'); });
+localDz.addEventListener('dragleave', () => localDz.classList.remove('drag'));
+localDz.addEventListener('drop', e => {
+  e.preventDefault(); localDz.classList.remove('drag');
+  const imgs = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  imgs.forEach(f => localFiles.push({ file: f, objectUrl: URL.createObjectURL(f), sku: '', alt: '' }));
+  renderLocalGrid();
+});
+
+function renderLocalGrid() {
+  const grid = document.getElementById('local-img-grid');
+  const btnGroup = document.getElementById('local-btn-group');
+  if (!localFiles.length) {
+    grid.style.display = 'none';
+    btnGroup.style.display = 'none';
+    return;
+  }
+  grid.style.display = 'grid';
+  btnGroup.style.display = 'flex';
+  grid.innerHTML = localFiles.map((item, i) => `
+    <div class="local-img-card" id="lcard-${i}">
+      <img src="${item.objectUrl}" alt="${item.file.name}">
+      <button class="local-img-remove" onclick="removeLocalImage(${i})" title="Remove">×</button>
+      <div class="local-img-fields">
+        <div class="local-img-field">
+          <label>SKU CODE</label>
+          <input type="text" placeholder="e.g. S111BN43" value="${item.sku}"
+            oninput="localFiles[${i}].sku=this.value">
+        </div>
+        <div class="local-img-field">
+          <label>ALT TEXT</label>
+          <input type="text" placeholder="e.g. Freedom Chair Front View" value="${item.alt}"
+            oninput="localFiles[${i}].alt=this.value">
+        </div>
+        <div style="font-size:9px;color:var(--t3);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.file.name}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function removeLocalImage(idx) {
+  URL.revokeObjectURL(localFiles[idx].objectUrl);
+  localFiles.splice(idx, 1);
+  renderLocalGrid();
+}
+
+function clearLocalImages() {
+  localFiles.forEach(item => URL.revokeObjectURL(item.objectUrl));
+  localFiles = [];
+  renderLocalGrid();
+  S.localResults = [];
+  document.getElementById('local-progress').style.display = 'none';
+  document.getElementById('local-stats').style.display = 'none';
+  document.getElementById('local-results-grid').style.display = 'none';
+  document.getElementById('local-json-actions').style.display = 'none';
+  document.getElementById('local-json-box').style.display = 'none';
+}
+
+async function runLocalUpload() {
+  const store = document.getElementById('shopify-store').value.trim().replace(/^https?:\/\//, '');
+  const token = document.getElementById('shopify-token').value.trim();
+  const ver = document.getElementById('shopify-ver').value;
+
+  const validation = validateStoreFormat(store);
+  if (!validation.valid) { showToast(validation.error); return; }
+  if (!token) { showToast('❌ Enter your Admin API token'); return; }
+  if (!localFiles.length) { showToast('❌ Select at least one image'); return; }
+
+  const btn = document.getElementById('local-upload-btn');
+  const prog = document.getElementById('local-progress');
+  const fill = document.getElementById('local-prog-fill');
+  const lbl = document.getElementById('local-prog-label');
+  const pct = document.getElementById('local-prog-pct');
+  const log = document.getElementById('local-log');
+
+  btn.disabled = true;
+  log.innerHTML = '';
+  prog.style.display = 'block';
+  document.getElementById('local-stats').style.display = 'none';
+  document.getElementById('local-results-grid').style.display = 'none';
+
+  const metadata = localFiles.map(item => ({ sku: item.sku.trim(), alt: item.alt.trim() }));
+  const formData = new FormData();
+  localFiles.forEach(item => formData.append('images', item.file));
+  formData.append('store', store);
+  formData.append('token', token);
+  formData.append('version', ver);
+  formData.append('metadata', JSON.stringify(metadata));
+
+  try {
+    logLine(`<span class="ly">▶ Uploading ${localFiles.length} image(s) to ${store}…</span>`, log);
+    const res = await fetch('/api/upload/local', { method: 'POST', body: formData });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (evt.type === 'progress') {
+          const p = Math.round(evt.done / evt.total * 100);
+          fill.style.width = p + '%';
+          pct.textContent = p + '%';
+          lbl.textContent = `${evt.done} / ${evt.total}`;
+          logLine(`<span class="ls">↑ ${evt.msg}</span>`, log);
+        } else if (evt.type === 'error') {
+          logLine(`<span class="lr">✗ ${evt.msg}</span>`, log);
+        } else if (evt.type === 'info') {
+          logLine(`<span class="ly">ℹ ${evt.msg}</span>`, log);
+        } else if (evt.type === 'done') {
+          fill.style.width = '100%';
+          pct.textContent = '100%';
+          lbl.textContent = `Complete — ${evt.ok} uploaded, ${evt.err} errors`;
+
+          document.getElementById('local-stats').style.display = 'grid';
+          document.getElementById('loc-ok').textContent = evt.ok;
+          document.getElementById('loc-err').textContent = evt.err;
+          document.getElementById('loc-total').textContent = evt.total;
+          document.getElementById('loc-pct').textContent = evt.total ? Math.round(evt.ok / evt.total * 100) + '%' : '—';
+
+          if (evt.results && evt.results.length) {
+            S.localResults = evt.results;
+            const rg = document.getElementById('local-results-grid');
+            rg.style.display = 'grid';
+            rg.innerHTML = evt.results.map(r => `
+              <div class="local-result-card ${r.uploaded === 'YES' ? 'ok' : 'fail'}">
+                <div style="font-size:9px;color:var(--t3)">${r.sku || '—'}</div>
+                <div style="color:var(--text)">${r.alt || r.originalName}</div>
+                ${r.shopifyUrl ? `<a class="local-result-url" href="${r.shopifyUrl}" target="_blank">View on Shopify ↗</a>` : '<div style="color:var(--red);font-size:9px;margin-top:4px">Not available</div>'}
+              </div>
+            `).join('');
+            if (evt.ok > 0) document.getElementById('local-json-actions').style.display = 'block';
+          }
+
+          document.getElementById('nav-3').classList.add('done');
+          showToast(`✓ ${evt.ok} image(s) uploaded to Shopify`);
+        }
+      }
+    }
+  } catch (e) {
+    logLine(`<span class="lr">✗ ${e.message}</span>`, log);
+    showToast('❌ Upload error: ' + e.message);
+  }
+
+  btn.disabled = false;
 }
 </script>
 </body>

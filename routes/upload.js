@@ -16,17 +16,30 @@ function isShopifyCdnUrl(url) {
   return url && /^https?:\/\/cdn\.shopify\.com\/.+$/i.test(url);
 }
 
-const upload = multer({ 
+const upload = multer({
   dest: uploadsDir,
   limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
         file.mimetype === 'application/vnd.ms-excel' ||
         file.originalname.endsWith('.xlsx') ||
         file.originalname.endsWith('.xls')) {
       cb(null, true);
     } else {
       cb(new Error('Only Excel files are allowed'));
+    }
+  }
+});
+
+const uploadLocalImages = multer({
+  dest: uploadsDir,
+  limits: { fileSize: 20 * 1024 * 1024, files: 50 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowed.includes(file.mimetype.toLowerCase())) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed (JPEG, PNG, WebP, GIF)'));
     }
   }
 });
@@ -391,6 +404,190 @@ router.post('/save-sheet', (req, res) => {
   } catch (e) {
     res.status(500).json({ error: `Failed to save sheet: ${e.message}` });
   }
+});
+
+/* ════════════════════════════════════════════════════
+   POST /api/upload/local
+════════════════════════════════════════════════════ */
+router.post('/local', uploadLocalImages.array('images', 50), async (req, res) => {
+  const { store, token, version = '2025-01' } = req.body;
+  const files = req.files || [];
+
+  if (!store || !token) {
+    files.forEach(f => fs.unlink(f.path, () => {}));
+    return res.status(400).json({ error: 'Missing store or token' });
+  }
+
+  if (!files.length) {
+    return res.status(400).json({ error: 'No image files uploaded' });
+  }
+
+  let metadata = [];
+  try {
+    metadata = JSON.parse(req.body.metadata || '[]');
+  } catch (e) {
+    files.forEach(f => fs.unlink(f.path, () => {}));
+    return res.status(400).json({ error: 'Invalid metadata JSON' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
+
+  const send = (type, data) => {
+    try { res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`); }
+    catch (e) { console.error(`[LOCAL] SSE write error: ${e.message}`); }
+  };
+
+  send('info', { msg: `Starting upload of ${files.length} local image(s) to ${store}` });
+
+  const BATCH = 8;
+  let ok = 0, err = 0;
+  const results = [];
+
+  for (let i = 0; i < files.length; i += BATCH) {
+    const batch = files.slice(i, i + BATCH);
+    const batchMeta = metadata.slice(i, i + BATCH);
+
+    /* ── STEP 1: Request staged upload targets ── */
+    const stagedInputs = batch.map((f, j) => {
+      const meta = batchMeta[j] || {};
+      const sku = (meta.sku || 'img').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const origName = f.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 80);
+      return {
+        resource: 'IMAGE',
+        filename: `${sku}_${origName}`.substring(0, 100),
+        mimeType: f.mimetype || 'image/jpeg',
+        httpMethod: 'POST',
+      };
+    });
+
+    let targets;
+    try {
+      const data = await shopifyGQL(store, token, version,
+        `mutation stagedUploadsCreate($input:[StagedUploadInput!]!){
+           stagedUploadsCreate(input:$input){
+             stagedTargets{ url resourceUrl parameters{ name value } }
+             userErrors{ field message }
+           }
+         }`,
+        { input: stagedInputs }
+      );
+      const ue = data?.data?.stagedUploadsCreate?.userErrors || [];
+      if (ue.length) throw new Error(ue.map(e => `${e.field}: ${e.message}`).join(', '));
+      targets = data?.data?.stagedUploadsCreate?.stagedTargets || [];
+      if (!targets.length) throw new Error('No staged upload targets returned');
+      console.log(`[LOCAL] Got ${targets.length} staging URLs`);
+    } catch (e) {
+      console.error(`[LOCAL] Staged create failed: ${e.message}`);
+      send('error', { msg: `Staged upload failed: ${e.message}` });
+      err += batch.length;
+      continue;
+    }
+
+    /* ── STEP 2: Read local file + POST to GCS ── */
+    for (let j = 0; j < batch.length; j++) {
+      const file = batch[j];
+      const target = targets[j];
+      const meta = batchMeta[j] || {};
+      const sku = meta.sku || '';
+      const alt = meta.alt || file.originalname.replace(/\.[^.]+$/, '') || 'Product image';
+
+      if (!target) {
+        err++;
+        send('error', { msg: `No staging target for ${file.originalname}` });
+        fs.unlink(file.path, () => {});
+        continue;
+      }
+
+      try {
+        const imgBuf = fs.readFileSync(file.path);
+        console.log(`[LOCAL] Read ${imgBuf.length} bytes from ${file.originalname}`);
+
+        const form = new FormData();
+        (target.parameters || []).forEach(p => form.append(p.name, p.value));
+        form.append('file', imgBuf, {
+          filename: stagedInputs[j].filename,
+          contentType: stagedInputs[j].mimeType,
+        });
+
+        const putRes = await retry(() => fetch(target.url, { method: 'POST', body: form, timeout: 30000 }), 3, 1000);
+        if (!putRes.ok) {
+          const t = await putRes.text();
+          throw new Error(`GCS upload HTTP ${putRes.status}: ${t.substring(0, 120)}`);
+        }
+        console.log(`[LOCAL] ✓ GCS upload successful for ${file.originalname}`);
+
+        /* ── STEP 3: Confirm fileCreate ── */
+        const confirmData = await shopifyGQL(store, token, version,
+          `mutation fileCreate($files:[FileCreateInput!]!){
+             fileCreate(files:$files){
+               files{ id alt ... on MediaImage{ image{ url } } ... on GenericFile{ url } }
+               userErrors{ field message }
+             }
+           }`,
+          { files: [{ originalSource: target.resourceUrl, alt, contentType: 'IMAGE' }] }
+        );
+
+        const ue2 = confirmData?.data?.fileCreate?.userErrors || [];
+        if (ue2.length) throw new Error(ue2.map(e => e.message).join(', '));
+
+        const createdFile = confirmData?.data?.fileCreate?.files?.[0] || {};
+        const fileId = createdFile?.id;
+        let shopifyUrl = null;
+
+        const immediateUrl = createdFile?.image?.url || createdFile?.url;
+        if (immediateUrl && isShopifyCdnUrl(immediateUrl)) {
+          shopifyUrl = immediateUrl;
+          console.log(`[LOCAL] ✓ Got Shopify URL immediately`);
+        }
+
+        /* ── STEP 4: Poll for CDN URL ── */
+        if (!shopifyUrl && fileId) {
+          console.log(`[LOCAL] Polling for CDN URL...`);
+          for (let attempt = 0; attempt < 20 && !shopifyUrl; attempt++) {
+            const sleepMs = attempt < 5 ? 1000 : 2000;
+            await sleep(sleepMs);
+            shopifyUrl = await resolveShopifyFileUrl(store, token, version, fileId);
+            if (shopifyUrl) console.log(`[LOCAL] ✓ Got URL on attempt ${attempt + 1}`);
+          }
+        }
+
+        if (!shopifyUrl) {
+          err++;
+          send('error', { msg: `⚠ Shopify URL not available for "${alt}"` });
+          results.push({ sku, alt, originalName: file.originalname, shopifyUrl: null, uploaded: 'PENDING' });
+          continue;
+        }
+
+        ok++;
+        results.push({ sku, alt, originalName: file.originalname, shopifyUrl, uploaded: 'YES' });
+        send('progress', {
+          done: ok + err,
+          total: files.length,
+          msg: `✓ ${alt}${sku ? ' (SKU: ' + sku + ')' : ''}`,
+          shopifyUrl,
+          sku,
+          alt,
+        });
+
+      } catch (e) {
+        err++;
+        console.error(`[LOCAL] ✗ Error for ${file.originalname}: ${e.message}`);
+        send('error', { msg: `✗ ${file.originalname}: ${e.message}` });
+        results.push({ sku, alt, originalName: file.originalname, shopifyUrl: null, uploaded: 'ERROR' });
+      } finally {
+        fs.unlink(file.path, () => {});
+      }
+    }
+
+    if (i + BATCH < files.length) await sleep(500);
+  }
+
+  send('done', { ok, err, total: files.length, results });
+  res.end();
 });
 
 async function retry(operation, retries = 3, delayMs = 700) {
