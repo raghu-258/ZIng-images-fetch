@@ -268,4 +268,152 @@ router.post('/from-results', async (req, res) => {
   });
 });
 
+/* ════════════════════════════════════════════════════
+   POST /api/json/search-product
+   Body: { store, token, version, query }
+   Returns: [{ id, title, handle }]
+════════════════════════════════════════════════════ */
+router.post('/search-product', async (req, res) => {
+  const { store, token, version = '2025-01', query: searchQuery } = req.body;
+  if (!store || !token) return res.status(400).json({ error: 'Missing store or token' });
+  if (!searchQuery) return res.status(400).json({ error: 'Missing search query' });
+
+  let normalizedStore = store.trim().replace(/^https?:\/\//, '');
+  if (!normalizedStore.includes('.')) normalizedStore += '.myshopify.com';
+
+  const gql = `
+    query searchProducts($q: String!) {
+      products(first: 10, query: $q) {
+        edges {
+          node {
+            id
+            title
+            handle
+            featuredImage { url }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const r = await fetch(`https://${normalizedStore}/admin/api/${version}/graphql.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+      body: JSON.stringify({ query: gql, variables: { q: searchQuery } }),
+      timeout: 15000,
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: `Shopify HTTP ${r.status}` });
+    if (data.errors) {
+      const msg = data.errors.map(e => e.message).join('; ');
+      const isAccessDenied = msg.toLowerCase().includes('access denied') || msg.toLowerCase().includes('unauthorized');
+      return res.status(400).json({
+        error: isAccessDenied
+          ? 'Token missing read_products scope. In Shopify Admin → Apps → your custom app → API scopes, enable "Read products" then save and copy the new token.'
+          : msg,
+      });
+    }
+    const products = (data.data?.products?.edges || []).map(e => ({
+      id: e.node.id,
+      title: e.node.title,
+      handle: e.node.handle,
+      image: e.node.featuredImage?.url || null,
+    }));
+    res.json({ products });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ════════════════════════════════════════════════════
+   POST /api/json/push-metafield
+   Body: { store, token, version, productId, namespace, key, jsonData }
+════════════════════════════════════════════════════ */
+router.post('/push-metafield', async (req, res) => {
+  const { store, token, version = '2025-01', productId, namespace = 'custom', key = 'gallery_images', jsonData } = req.body;
+  if (!store || !token) return res.status(400).json({ error: 'Missing store or token' });
+  if (!productId) return res.status(400).json({ error: 'Missing productId' });
+  if (!jsonData) return res.status(400).json({ error: 'Missing jsonData' });
+
+  let normalizedStore = store.trim().replace(/^https?:\/\//, '');
+  if (!normalizedStore.includes('.')) normalizedStore += '.myshopify.com';
+
+  const newData = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+
+  // ── Step 1: Fetch existing metafield value ──
+  let existingData = {};
+  try {
+    const fetchQuery = `
+      query getMetafield($id: ID!, $ns: String!, $key: String!) {
+        product(id: $id) {
+          metafield(namespace: $ns, key: $key) { value }
+        }
+      }
+    `;
+    const fr = await fetch(`https://${normalizedStore}/admin/api/${version}/graphql.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+      body: JSON.stringify({ query: fetchQuery, variables: { id: productId, ns: namespace, key } }),
+      timeout: 15000,
+    });
+    const fd = await fr.json();
+    const existing = fd?.data?.product?.metafield?.value;
+    if (existing) {
+      try { existingData = JSON.parse(existing); } catch (_) { existingData = {}; }
+    }
+    console.log(`[METAFIELD] Existing keys: ${Object.keys(existingData).join(', ') || 'none'}`);
+  } catch (e) {
+    console.warn(`[METAFIELD] Could not fetch existing metafield: ${e.message}`);
+  }
+
+  // ── Step 2: Merge — append new URLs to existing, deduplicate ──
+  const merged = { ...existingData };
+  for (const [k, urls] of Object.entries(newData)) {
+    if (!merged[k]) {
+      merged[k] = urls;
+    } else {
+      const combined = [...merged[k], ...urls];
+      merged[k] = [...new Set(combined)]; // deduplicate
+    }
+  }
+
+  const addedKeys = Object.keys(newData).length;
+  const totalKeys = Object.keys(merged).length;
+  console.log(`[METAFIELD] Merging ${addedKeys} new key(s) → total ${totalKeys} key(s)`);
+
+  // ── Step 3: Push merged value ──
+  const mutation = `
+    mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields { id namespace key value }
+        userErrors { field message }
+      }
+    }
+  `;
+
+  try {
+    const r = await fetch(`https://${normalizedStore}/admin/api/${version}/graphql.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          metafields: [{ ownerId: productId, namespace, key, type: 'json', value: JSON.stringify(merged) }],
+        },
+      }),
+      timeout: 15000,
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: `Shopify HTTP ${r.status}` });
+    if (data.errors) return res.status(400).json({ error: data.errors.map(e => e.message).join('; ') });
+    const ue = data.data?.metafieldsSet?.userErrors || [];
+    if (ue.length) return res.status(400).json({ error: ue.map(e => `${e.field}: ${e.message}`).join('; ') });
+    const mf = data.data?.metafieldsSet?.metafields?.[0];
+    res.json({ success: true, metafield: mf, merged, addedKeys, totalKeys });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

@@ -166,6 +166,23 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
 .local-result-card.ok{border-color:rgba(0,229,160,0.3);}
 .local-result-card.fail{border-color:rgba(255,77,109,0.3);}
 .local-result-url{word-break:break-all;color:var(--blue);margin-top:4px;font-size:9px;}
+.search-row{display:flex;gap:8px;margin-bottom:12px;}
+.search-row input{flex:1;padding:8px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s;}
+.search-row input:focus{border-color:var(--shopify);}
+.product-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;max-height:240px;overflow-y:auto;}
+.product-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .15s;}
+.product-item:hover{border-color:var(--shopify);background:var(--s3);}
+.product-item.selected{border-color:var(--shopify);background:rgba(149,191,72,0.07);}
+.product-thumb{width:36px;height:36px;border-radius:5px;object-fit:cover;background:var(--s3);flex-shrink:0;}
+.product-thumb-placeholder{width:36px;height:36px;border-radius:5px;background:var(--s3);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--t3);}
+.product-info{flex:1;min-width:0;}
+.product-title{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.product-handle{font-size:10px;color:var(--t3);font-family:var(--mono);}
+.selected-product-banner{background:rgba(149,191,72,0.07);border:1px solid rgba(149,191,72,0.25);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;}
+.push-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.push-status{border-radius:var(--r);padding:10px 14px;font-family:var(--mono);font-size:11px;line-height:1.6;display:none;}
+.push-status.ok{background:rgba(0,229,160,0.07);border:1px solid rgba(0,229,160,0.2);color:var(--green);}
+.push-status.err{background:rgba(255,77,109,0.07);border:1px solid rgba(255,77,109,0.2);color:var(--red);}
 </style>
 </head>
 <body>
@@ -375,6 +392,48 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
         <div class="json-out" id="json-out"></div>
       </div>
       <div id="json-empty" class="empty"><div class="empty-icon">{}</div><div class="empty-title">Complete Steps 1–3</div></div>
+
+      <!-- ── PUSH TO SHOPIFY ── -->
+      <div class="box" id="push-box" style="display:none">
+        <div class="box-title"><span class="dot s"></span> Push to Shopify Product Metafield</div>
+
+        <!-- Product search -->
+        <div class="search-row">
+          <input type="text" id="product-search-input" placeholder="Search product by name…" onkeydown="if(event.key==='Enter')searchProduct()">
+          <button class="btn btn-shopify" id="product-search-btn" onclick="searchProduct()">Search</button>
+        </div>
+
+        <!-- Results list -->
+        <div id="product-list" class="product-list" style="display:none"></div>
+
+        <!-- Selected product -->
+        <div id="selected-product-banner" class="selected-product-banner" style="display:none">
+          <div style="font-size:18px">✓</div>
+          <div style="flex:1;min-width:0">
+            <div id="selected-product-title" style="font-size:12px;font-weight:600;color:var(--text)"></div>
+            <div id="selected-product-handle" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="clearProductSelection()">Change</button>
+        </div>
+
+        <!-- Metafield config -->
+        <div class="push-fields">
+          <div class="field-full" style="margin:0">
+            <label>Namespace</label>
+            <input type="text" id="mf-namespace" value="custom">
+          </div>
+          <div class="field-full" style="margin:0">
+            <label>Key</label>
+            <input type="text" id="mf-key" value="gallery_images">
+          </div>
+        </div>
+
+        <div class="push-status" id="push-status"></div>
+
+        <div class="btn-group" style="margin-top:0">
+          <button class="btn btn-shopify" id="push-btn" onclick="pushToMetafield()" disabled>Push JSON to product</button>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -698,15 +757,17 @@ async function generateJSON() {
 
   if (!data || data.error) { showToast(data?.error || 'Failed'); return; }
 
-  S.jsonData = data;
-  const kc = Object.keys(data).length;
+  // Backend wraps response as { data: {...}, metafield: null } — unwrap it
+  S.jsonData = data.data !== undefined ? data.data : data;
+  const kc = Object.keys(S.jsonData).length;
   if (kc === 0) {
     showToast('❌ No images with valid Shopify URLs found. Check your upload.'); 
     return;
   }
   document.getElementById('json-empty').style.display = 'none';
   document.getElementById('json-box').style.display = 'block';
-  document.getElementById('json-out').innerHTML = syntaxHL(JSON.stringify(data, null, 2));
+  document.getElementById('json-out').innerHTML = syntaxHL(JSON.stringify(S.jsonData, null, 2));
+  document.getElementById('push-box').style.display = 'block';
   document.getElementById('nav-4').classList.add('done');
   showToast(`✓ ${kc} JSON keys generated from images with Shopify URLs`);
 }
@@ -751,6 +812,138 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+/* ─── PUSH TO SHOPIFY METAFIELD ─── */
+let selectedProduct = null;
+
+function showPushBox() {
+  document.getElementById('push-box').style.display = 'block';
+}
+
+async function searchProduct() {
+  const store = document.getElementById('shopify-store').value.trim().replace(/^https?:\/\//, '');
+  const token = document.getElementById('shopify-token').value.trim();
+  const ver   = document.getElementById('shopify-ver').value;
+  const q     = document.getElementById('product-search-input').value.trim();
+
+  if (!store || !token) { showToast('❌ Enter Shopify credentials in the sidebar'); return; }
+  if (!q) { showToast('Enter a product name to search'); return; }
+
+  const btn = document.getElementById('product-search-btn');
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  try {
+    const res = await fetch('/api/json/search-product', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store, token, version: ver, query: q }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('❌ ' + data.error); return; }
+
+    const list = document.getElementById('product-list');
+    if (!data.products.length) {
+      list.style.display = 'flex';
+      list.innerHTML = `<div style="padding:12px;color:var(--t3);font-size:11px;font-family:var(--mono)">No products found for "${q}"</div>`;
+      return;
+    }
+
+    list.style.display = 'flex';
+    list.innerHTML = data.products.map(p => `
+      <div class="product-item" id="pi-${p.id.replace(/\//g,'-')}" onclick="selectProduct(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+        ${p.image
+          ? `<img class="product-thumb" src="${p.image}" alt="${p.title}">`
+          : `<div class="product-thumb-placeholder">📦</div>`}
+        <div class="product-info">
+          <div class="product-title">${p.title}</div>
+          <div class="product-handle">${p.handle}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    showToast('❌ ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Search';
+}
+
+function selectProduct(p) {
+  selectedProduct = p;
+  document.querySelectorAll('.product-item').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('pi-' + p.id.replace(/\//g,'-'));
+  if (el) el.classList.add('selected');
+
+  document.getElementById('selected-product-title').textContent = p.title;
+  document.getElementById('selected-product-handle').textContent = p.handle;
+  document.getElementById('selected-product-banner').style.display = 'flex';
+  document.getElementById('push-btn').disabled = false;
+  showToast(`✓ Selected: ${p.title}`);
+}
+
+function clearProductSelection() {
+  selectedProduct = null;
+  document.getElementById('selected-product-banner').style.display = 'none';
+  document.getElementById('product-list').style.display = 'none';
+  document.getElementById('product-search-input').value = '';
+  document.getElementById('push-btn').disabled = true;
+  document.getElementById('push-status').style.display = 'none';
+}
+
+async function pushToMetafield() {
+  if (!selectedProduct) { showToast('Select a product first'); return; }
+  if (!Object.keys(S.jsonData).length) { showToast('Generate JSON first'); return; }
+
+  const store     = document.getElementById('shopify-store').value.trim().replace(/^https?:\/\//, '');
+  const token     = document.getElementById('shopify-token').value.trim();
+  const ver       = document.getElementById('shopify-ver').value;
+  const namespace = document.getElementById('mf-namespace').value.trim() || 'custom';
+  const key       = document.getElementById('mf-key').value.trim() || 'gallery_images';
+  const status    = document.getElementById('push-status');
+
+  if (!store || !token) { showToast('❌ Enter Shopify credentials'); return; }
+
+  const btn = document.getElementById('push-btn');
+  btn.disabled = true;
+  btn.textContent = 'Pushing…';
+  status.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/json/push-metafield', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        store, token, version: ver,
+        productId: selectedProduct.id,
+        namespace, key,
+        jsonData: S.jsonData,
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      status.className = 'push-status err';
+      status.style.display = 'block';
+      status.textContent = '✗ ' + (data.error || 'Push failed');
+      showToast('❌ Push failed');
+    } else {
+      status.className = 'push-status ok';
+      status.style.display = 'block';
+      status.innerHTML = `✓ Metafield updated on <strong>${selectedProduct.title}</strong><br>` +
+        `Namespace: <strong>${namespace}</strong> · Key: <strong>${key}</strong><br>` +
+        `Added ${data.addedKeys} key(s) · Total keys in metafield: ${data.totalKeys}`;
+      showToast(`✓ Metafield pushed to ${selectedProduct.title}`);
+    }
+  } catch(e) {
+    status.className = 'push-status err';
+    status.style.display = 'block';
+    status.textContent = '✗ ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Push JSON to product';
 }
 
 /* ─── LOCAL JSON ─── */
@@ -864,12 +1057,9 @@ function clearLocalImages() {
   localFiles.forEach(item => URL.revokeObjectURL(item.objectUrl));
   localFiles = [];
   renderLocalGrid();
-  S.localResults = [];
   document.getElementById('local-progress').style.display = 'none';
   document.getElementById('local-stats').style.display = 'none';
   document.getElementById('local-results-grid').style.display = 'none';
-  document.getElementById('local-json-actions').style.display = 'none';
-  document.getElementById('local-json-box').style.display = 'none';
 }
 
 async function runLocalUpload() {
