@@ -17,16 +17,22 @@ router.post('/generate', (req, res) => {
   const wb = XLSX.utils.book_new();
 
   /* ── Sheet 1: Images to upload ── */
-  const rows = results.map(r => ({
-    SKU:                r.sku,
-    View:               r.view,
-    'Product URL':      r.url,
-    'Alt Text':         '',           // ← user fills this in
-    'Filename':         r.url.split('/').pop(),
-    'Shopify URL':      '',           // filled after upload
-    'Uploaded':         'NO',
-    'Notes':            '',
-  }));
+  const rows = results.map(r => {
+    const altText = r.altText || r.label || '';
+    const filename = altText
+      ? `${altText}.jpg`
+      : (r.sku ? `${r.sku}-${r.view || 1}.jpg` : r.url.split('/').pop().split('?')[0] || 'image.jpg');
+    return {
+      SKU:           r.sku,
+      View:          r.view,
+      'Product URL': r.url,
+      'Alt Text':    altText,
+      'Filename':    filename,
+      'Shopify URL': '',
+      'Uploaded':    'NO',
+      'Notes':       '',
+    };
+  });
 
   const ws = XLSX.utils.json_to_sheet(rows);
 

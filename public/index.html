@@ -85,7 +85,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
 .btn-green{background:var(--green);color:#000;}
 .btn-green:hover{background:var(--green2);}
 .btn-green:disabled{background:var(--s3);color:var(--t3);cursor:not-allowed;}
-.btn-shopify{background:var(--shopify);color:#1a2200;}
+.btn-shopify{background:var(--shopify);color:#1a2100;}
 .btn-shopify:hover{background:#a8d455;}
 .btn-shopify:disabled{background:var(--s3);color:var(--t3);cursor:not-allowed;}
 .btn-ghost{background:var(--s2);color:var(--t2);border:1px solid var(--b2);}
@@ -203,15 +203,18 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
     <button class="step-btn" id="nav-3" onclick="goPanel(3)"><div class="step-num">3</div> Upload to Shopify<span class="step-done-icon">✓</span></button>
     <button class="step-btn" id="nav-4" onclick="goPanel(4)"><div class="step-num">4</div> Generate JSON<span class="step-done-icon">✓</span></button>
   </div>
+  <div style="padding:0 10px 8px;">
+    <button onclick="resetSession()" style="width:100%;padding:7px 10px;border:1px solid rgba(255,77,109,0.3);border-radius:var(--r);background:none;color:var(--red);font-family:var(--sans);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;" onmouseover="this.style.background='rgba(255,77,109,0.08)'" onmouseout="this.style.background='none'">✕ Reset session</button>
+  </div>
   <div class="nav-creds">
     <div class="cred-title">Shopify Credentials</div>
     <div class="f">
       <label>Store domain</label>
-      <input type="text" id="shopify-store" class="shopify-field" placeholder="yourstore.myshopify.com">
+      <input type="text" id="shopify-store" class="shopify-field" placeholder="yourstore.myshopify.com" oninput="debouncedSave()">
     </div>
     <div class="f">
       <label>Admin API token</label>
-      <input type="password" id="shopify-token" class="shopify-field" placeholder="shpat_…">
+      <input type="password" id="shopify-token" class="shopify-field" placeholder="shpat_…" oninput="debouncedSave()">
     </div>
     <div class="f">
       <label>API version</label>
@@ -225,7 +228,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
 </nav>
 <main class="main">
   <div class="panel active" id="panel-1">
-    <div class="page-header"><div class="page-title">Probe Humanscale Images</div><div class="page-sub">Enter SKUs to fetch all available product images</div></div>
+    <div class="page-header"><div class="page-title">Probe Humanscale Images</div><div class="page-sub">Enter SKUs or paste a render URL to fetch product images</div></div>
     <div class="content">
       <div class="stats">
         <div class="stat"><div class="stat-n g" id="st-skus">0</div><div class="stat-l">SKUs</div></div>
@@ -233,17 +236,90 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
         <div class="stat"><div class="stat-n b" id="st-views">—</div><div class="stat-l">Avg views/SKU</div></div>
         <div class="stat"><div class="stat-n y" id="st-domain">APAC</div><div class="stat-l">Domain</div></div>
       </div>
-      <div class="box">
-        <div class="box-title"><span class="dot"></span> SKUs</div>
-        <div class="field-full">
-          <label>SKUs — one per line or comma separated</label>
-          <textarea class="big-textarea" id="sku-input" placeholder="S111BN43PS30XFSHNSC"></textarea>
-        </div>
-        <div class="chips" id="chips"></div>
-        <div class="btn-group">
-          <button class="btn btn-green" id="probe-btn" onclick="runProbe()">Probe images</button>
+
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-sku" onclick="switchProbeMode('sku')">SKU Probe</button>
+        <button class="mode-tab" id="tab-url" onclick="switchProbeMode('url')">Render URL (3 angles)</button>
+        <button class="mode-tab" id="tab-multi" onclick="switchProbeMode('multi')">Multi-Product</button>
+        <button class="mode-tab" id="tab-bulk" onclick="switchProbeMode('bulk')">Bulk URL + SKUs</button>
+      </div>
+
+      <!-- SKU mode -->
+      <div id="sku-probe-mode">
+        <div class="box">
+          <div class="box-title"><span class="dot"></span> SKUs</div>
+          <div class="field-full">
+            <label>SKUs — one per line or comma separated</label>
+            <textarea class="big-textarea" id="sku-input" placeholder="S111BN43PS30XFSHNSC" oninput="debouncedSave()"></textarea>
+          </div>
+          <div class="chips" id="chips"></div>
+          <div class="btn-group">
+            <button class="btn btn-green" id="probe-btn" onclick="runProbe()">Probe images</button>
+          </div>
         </div>
       </div>
+
+      <!-- Multi-product URL + SKU mode -->
+      <div id="multi-probe-mode" style="display:none">
+        <div class="box">
+          <div class="box-title"><span class="dot y"></span> Multi-Product — URL + SKU</div>
+          <div class="notice yellow">
+            <strong>Two modes per row:</strong><br>
+            · <strong>SKU only</strong> (leave URL blank) — for decodable chairs like Diffrient Smart (S11…). SKU builds the URL automatically.<br>
+            · <strong>URL + SKU label</strong> — for other families (Liberty, Freedom, etc.). Paste the chair's render URL; SKU is used as a label only.
+          </div>
+          <div id="multi-product-list" style="margin-bottom:14px">
+            <div style="color:var(--t3);font-size:11px;font-family:var(--mono);padding:8px 0;text-align:center">No products yet — click "+ Add Product"</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-ghost btn-sm" onclick="addMultiProduct()">+ Add Product</button>
+            <button class="btn btn-green" id="multi-probe-btn" onclick="runMultiProbe()">Generate All Views</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bulk URL + SKUs mode -->
+      <div id="bulk-probe-mode" style="display:none">
+        <div class="box">
+          <div class="box-title"><span class="dot y"></span> Reference URL — locked for all SKUs</div>
+          <div class="notice yellow">Paste one render URL for the product family. Each SKU's mat/mesh/frame will be substituted automatically. Then enter all SKU codes below.</div>
+          <div class="field-full">
+            <label>Base render URL</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="bulk-template-url" placeholder="https://machinecore.thebigpicturemachine.com/Ziing3Server/Ziing3.aspx?req=render&…"
+                style="flex:1;padding:8px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s"
+                onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor=bulkUrlLocked?'var(--green)':'var(--b2)'"
+                oninput="bulkUrlLocked=false;updateBulkLock();debouncedSave()">
+              <button id="bulk-lock-btn" onclick="toggleBulkLock()"
+                style="padding:7px 14px;background:none;border:1px solid var(--b2);border-radius:var(--r);color:var(--t2);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap"
+                onmouseover="this.style.borderColor='var(--green)'" onmouseout="updateBulkLock()">🔓 Lock URL</button>
+            </div>
+          </div>
+          <div class="field-full" style="margin-top:14px">
+            <label>SKU codes — one per line or comma separated</label>
+            <textarea id="bulk-skus-input" class="big-textarea" placeholder="L313AM10GU11XFSHNSC&#10;L313AM10GU14XFSHNSC&#10;L313AM10GU19XFSHNSC" style="min-height:140px" oninput="debouncedSave()"></textarea>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-green" id="bulk-probe-btn" onclick="runBulkProbe()">⚡ Probe All SKUs</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- URL mode -->
+      <div id="url-probe-mode" style="display:none">
+        <div class="box">
+          <div class="box-title"><span class="dot b"></span> Render URL</div>
+          <div class="notice yellow">Paste any one of the 3 angle URLs — the system will auto-generate all three angles: <strong>0000 · 0030 · 0210</strong></div>
+          <div class="field-full">
+            <label>Base render URL</label>
+            <textarea class="big-textarea" id="url-input" placeholder="https://machinecore.thebigpicturemachine.com/Ziing3Server/Ziing3.aspx?req=render&humanscale-smart-s11TV3_0000&fmt=jpg&bgc=ffffff&size=734&layer=…" style="min-height:90px" oninput="debouncedSave()"></textarea>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-green" id="url-probe-btn" onclick="runUrlProbe()">Generate 3 angles</button>
+          </div>
+        </div>
+      </div>
+
       <div class="progress-box" id="probe-progress" style="display:none">
         <div class="progress-head"><span class="progress-label" id="probe-prog-label">Probing…</span><span class="progress-label" id="probe-prog-pct">0%</span></div>
         <div class="progress-track"><div class="progress-fill green" id="probe-prog-fill" style="width:0%"></div></div>
@@ -251,11 +327,29 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
       </div>
       <div id="probe-empty" class="empty"><div class="empty-icon">◈</div><div class="empty-title">No images yet</div></div>
       <div class="img-grid" id="img-grid" style="display:none"></div>
+      <div id="multi-results-section" style="display:none"></div>
+      <div id="bulk-results-preview" style="display:none"></div>
     </div>
   </div>
   <div class="panel" id="panel-2">
-    <div class="page-header"><div class="page-title">Edit & Download Sheet</div></div>
+    <div class="page-header"><div class="page-title">Edit & Download Sheet</div><div class="page-sub">Add alt text for each image, then download the sheet</div></div>
     <div class="content">
+
+      <!-- Bulk alt-text editor — shown after bulk probe -->
+      <div id="bulk-alt-section" style="display:none">
+        <div class="box" style="margin-bottom:16px">
+          <div class="box-title"><span class="dot y"></span> Alt Text Editor
+            <span style="margin-left:auto;font-size:10px;color:var(--t3);font-weight:400">Type a base name — views are auto-labelled -1 -2 -3</span>
+          </div>
+          <div id="bulk-alt-list" style="display:flex;flex-direction:column;gap:12px"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <button class="btn btn-green" onclick="downloadBulkSheet()">⬇ Download Sheet</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearBulkResults()" style="color:var(--red);border-color:rgba(255,77,109,0.3)">✕ Clear bulk results</button>
+        </div>
+      </div>
+
+      <!-- Standard download (from SKU probe / URL probe) -->
       <div class="box">
         <div class="box-title"><span class="dot y"></span> Download</div>
         <div id="sheet-empty" class="empty" style="padding:30px"><div class="empty-icon">📋</div><div class="empty-title">Probe images first</div></div>
@@ -458,6 +552,7 @@ function goPanel(n) {
       document.getElementById('shopify-warning').style.display = 'none';
     }
   }
+  saveSession();
 }
 
 function addSkusToQueue() {
@@ -493,7 +588,7 @@ async function runProbe() {
     const res = await fetch('/api/probe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ skus: S.skus, domain: 'apac.humanscale.com', size: 734, maxViews: 20, fmt: 'png' }),
+      body: JSON.stringify({ skus: S.skus }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -505,7 +600,7 @@ async function runProbe() {
     S.probeResults.forEach((r, i) => {
       const c = document.createElement('div');
       c.className = 'img-card';
-      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.sku}"><div class="img-card-info"><div class="img-card-view">View ${r.view}</div><div class="img-card-sku">${r.sku}</div></div>`;
+      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label || r.sku}"><div class="img-card-info"><div class="img-card-view">${r.label || ('View ' + r.view)}</div><div class="img-card-sku">${r.sku}</div></div>`;
       grid.appendChild(c);
     });
 
@@ -516,6 +611,7 @@ async function runProbe() {
     document.getElementById('sheet-ready').style.display = 'block';
     logLine(`<span class="lg">✓ ${data.total} images found</span>`, log);
     showToast(`✓ ${data.total} images found`);
+    saveSession();
   } catch(e) {
     logLine(`<span class="lr">✗ ${e.message}</span>`, log);
     showToast('Error: ' + e.message);
@@ -770,6 +866,7 @@ async function generateJSON() {
   document.getElementById('push-box').style.display = 'block';
   document.getElementById('nav-4').classList.add('done');
   showToast(`✓ ${kc} JSON keys generated from images with Shopify URLs`);
+  saveSession();
 }
 
 function reviewShopifyUrls() {
@@ -1052,6 +1149,542 @@ function removeLocalImage(idx) {
   localFiles.splice(idx, 1);
   renderLocalGrid();
 }
+
+/* ─── PROBE MODE SWITCH ─── */
+function switchProbeMode(mode) {
+  document.getElementById('sku-probe-mode').style.display    = mode === 'sku'   ? 'block' : 'none';
+  document.getElementById('url-probe-mode').style.display    = mode === 'url'   ? 'block' : 'none';
+  document.getElementById('multi-probe-mode').style.display  = mode === 'multi' ? 'block' : 'none';
+  document.getElementById('bulk-probe-mode').style.display   = mode === 'bulk'  ? 'block' : 'none';
+  document.getElementById('tab-sku').classList.toggle('active',    mode === 'sku');
+  document.getElementById('tab-url').classList.toggle('active',    mode === 'url');
+  document.getElementById('tab-multi').classList.toggle('active',  mode === 'multi');
+  document.getElementById('tab-bulk').classList.toggle('active',   mode === 'bulk');
+  if (mode !== 'multi') document.getElementById('multi-results-section').style.display = 'none';
+}
+
+async function runUrlProbe() {
+  const baseUrl = document.getElementById('url-input').value.trim();
+  if (!baseUrl) { showToast('Paste a render URL first'); return; }
+
+  const btn = document.getElementById('url-probe-btn');
+  const log = document.getElementById('probe-log');
+  const prog = document.getElementById('probe-progress');
+  btn.disabled = true;
+  prog.style.display = 'block';
+  log.innerHTML = '';
+  logLine(`<span class="ly">▶ Generating 3 angle variants…</span>`, log);
+
+  try {
+    const res = await fetch('/api/probe/url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseUrl }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    S.probeResults = data.results;
+    const grid = document.getElementById('img-grid');
+    grid.innerHTML = '';
+    grid.style.display = 'grid';
+    data.results.forEach(r => {
+      const c = document.createElement('div');
+      c.className = 'img-card';
+      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label}"><div class="img-card-info"><div class="img-card-view">${r.label}</div><div class="img-card-sku">${r.angle}</div></div>`;
+      grid.appendChild(c);
+    });
+
+    document.getElementById('probe-empty').style.display = 'none';
+    document.getElementById('st-found').textContent = data.total;
+    document.getElementById('nav-1').classList.add('done');
+    document.getElementById('sheet-empty').style.display = 'none';
+    document.getElementById('sheet-ready').style.display = 'block';
+    logLine(`<span class="lg">✓ ${data.total}/3 angle(s) verified</span>`, log);
+    showToast(`✓ ${data.total} angle image(s) ready`);
+    saveSession();
+  } catch(e) {
+    logLine(`<span class="lr">✗ ${e.message}</span>`, log);
+    showToast('Error: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+/* ─── BULK URL + SKUS PROBE ─── */
+let bulkUrlLocked   = false;
+let S_bulkResults   = [];   // [{ sku, images:[{url,angle,label,view}] }]
+let S_bulkAltTexts  = {};   // { sku: altBase }
+
+function updateBulkLock() {
+  const btn   = document.getElementById('bulk-lock-btn');
+  const input = document.getElementById('bulk-template-url');
+  if (!btn) return;
+  if (bulkUrlLocked) {
+    btn.textContent = '🔒 Locked';
+    btn.style.color = 'var(--green)';
+    btn.style.borderColor = 'var(--green)';
+    input.style.borderColor = 'var(--green)';
+    input.style.opacity = '0.75';
+    input.readOnly = true;
+  } else {
+    btn.textContent = '🔓 Lock URL';
+    btn.style.color = 'var(--t2)';
+    btn.style.borderColor = 'var(--b2)';
+    input.style.opacity = '1';
+    input.readOnly = false;
+  }
+}
+
+function toggleBulkLock() {
+  const url = document.getElementById('bulk-template-url')?.value.trim();
+  if (!bulkUrlLocked && !url) { showToast('Paste a render URL first'); return; }
+  bulkUrlLocked = !bulkUrlLocked;
+  updateBulkLock();
+}
+
+async function runBulkProbe() {
+  const templateUrl = document.getElementById('bulk-template-url')?.value.trim();
+  const raw         = document.getElementById('bulk-skus-input')?.value || '';
+  const skus        = raw.split(/[\n,]+/).map(s => s.trim().toUpperCase()).filter(Boolean).filter((s,i,a)=>a.indexOf(s)===i);
+
+  if (!templateUrl) { showToast('Paste a render URL first'); return; }
+  if (!skus.length)  { showToast('Enter at least one SKU code'); return; }
+
+  // Auto-lock URL when probing starts
+  if (!bulkUrlLocked) { bulkUrlLocked = true; updateBulkLock(); }
+
+  const btn  = document.getElementById('bulk-probe-btn');
+  const log  = document.getElementById('probe-log');
+  const prog = document.getElementById('probe-progress');
+  btn.disabled = true;
+  prog.style.display = 'block'; log.innerHTML = '';
+  document.getElementById('st-skus').textContent = skus.length;
+  logLine(`<span class="ly">▶ Probing ${skus.length} SKU(s)…</span>`, log);
+
+  try {
+    const res  = await fetch('/api/probe/bulk-url', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templateUrl, skus }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    S_bulkResults  = data.products;
+    S_bulkAltTexts = {};
+
+    // Flatten into S.probeResults for sheet compatibility
+    S.probeResults = data.products.flatMap(p => p.images);
+
+    document.getElementById('st-found').textContent = data.total;
+    document.getElementById('nav-1').classList.add('done');
+    document.getElementById('probe-empty').style.display = 'none';
+    document.getElementById('img-grid').style.display = 'none';
+    document.getElementById('multi-results-section').style.display = 'none';
+
+    logLine(`<span class="lg">✓ ${data.total} images across ${data.products.length} SKU(s)</span>`, log);
+    showToast(`✓ ${data.total} images ready — go to Step 2 to add alt texts`);
+
+    renderBulkPreview();
+    renderBulkAltEditor();
+    document.getElementById('nav-2').classList.add('done');
+    document.getElementById('sheet-empty').style.display = 'none';
+    document.getElementById('sheet-ready').style.display = 'none'; // bulk uses its own download
+    saveSession();
+  } catch(e) {
+    logLine(`<span class="lr">✗ ${e.message}</span>`, log);
+    showToast('Error: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+function renderBulkPreview() {
+  const section = document.getElementById('bulk-results-preview');
+  if (!section || !S_bulkResults.length) return;
+  section.style.display = 'block';
+  section.innerHTML = S_bulkResults.map(product => {
+    const imagesHtml = product.images.length
+      ? product.images.map(img => `
+          <div style="background:var(--s1)">
+            <div style="background:#fff;aspect-ratio:1/1">
+              <img src="${img.url}" style="width:100%;height:100%;object-fit:contain;display:block" loading="lazy" alt="${img.label}">
+            </div>
+            <div style="padding:6px 10px">
+              <div style="font-size:10px;font-weight:700;font-family:var(--mono);color:var(--text)">${img.label}</div>
+              <div style="font-size:9px;color:var(--t3);font-family:var(--mono)">${img.angle}</div>
+            </div>
+          </div>`).join('')
+      : `<div style="padding:20px;color:var(--red);font-family:var(--mono);font-size:11px;grid-column:1/-1">✗ No images found</div>`;
+
+    return `
+      <div style="margin-bottom:10px;background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow:hidden;animation:fadeUp .2s ease both">
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--text)">${product.sku}</span>
+          <span style="font-size:9px;color:var(--t3);font-family:var(--mono)">${product.images.length}/3 views</span>
+          ${product.images.length === 3 ? '<span style="font-size:9px;color:var(--green);font-family:var(--mono);margin-left:auto">✓ complete</span>' : ''}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)">${imagesHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderBulkAltEditor() {
+  const section = document.getElementById('bulk-alt-section');
+  const list    = document.getElementById('bulk-alt-list');
+  if (!section || !list || !S_bulkResults.length) return;
+
+  section.style.display = 'block';
+  list.innerHTML = S_bulkResults.map((product, pi) => {
+    const altBase = S_bulkAltTexts[product.sku] || '';
+    const previewHtml = altBase
+      ? product.images.map((img, vi) =>
+          `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${altBase}-${vi+1}</span>`).join(' ')
+      : `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">type alt text to preview labels</span>`;
+
+    const thumbsHtml = product.images.map((img, vi) => `
+      <div style="flex:1;min-width:0">
+        <div style="background:#fff;border-radius:6px;overflow:hidden;aspect-ratio:1;margin-bottom:4px">
+          <img src="${img.url}" style="width:100%;height:100%;object-fit:contain;display:block" loading="lazy" alt="${img.label}">
+        </div>
+        <div style="font-size:9px;color:var(--t3);font-family:var(--mono);text-align:center">${img.label}</div>
+        <div id="alt-label-${pi}-${vi}" style="font-size:9px;color:var(--green);font-family:var(--mono);text-align:center;margin-top:2px">${altBase ? altBase+'-'+(vi+1) : ''}</div>
+      </div>`).join('');
+
+    return `
+      <div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;display:flex;gap:14px;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--text);margin-bottom:10px">${product.sku}</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px">${thumbsHtml}</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" value="${altBase}"
+              placeholder="e.g. PA-black-GU11"
+              style="flex:1;min-width:160px;padding:6px 9px;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s"
+              onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'"
+              oninput="onBulkAltInput(${pi},'${product.sku}',this.value)">
+            <div id="alt-preview-${pi}" style="display:flex;gap:4px;flex-wrap:wrap">${previewHtml}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function onBulkAltInput(pi, sku, val) {
+  S_bulkAltTexts[sku] = val.trim();
+  // update label previews
+  const preview = document.getElementById(`alt-preview-${pi}`);
+  if (preview) {
+    if (val.trim()) {
+      preview.innerHTML = [1,2,3].map(n =>
+        `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${val.trim()}-${n}</span>`
+      ).join(' ');
+    } else {
+      preview.innerHTML = `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">type alt text to preview labels</span>`;
+    }
+  }
+  const product = S_bulkResults[pi];
+  if (product) {
+    product.images.forEach((img, vi) => {
+      const el = document.getElementById(`alt-label-${pi}-${vi}`);
+      if (el) el.textContent = val.trim() ? val.trim() + '-' + (vi+1) : '';
+    });
+  }
+  debouncedSave();
+}
+
+async function downloadBulkSheet() {
+  if (!S_bulkResults.length) { showToast('No bulk results to download'); return; }
+
+  const rows = S_bulkResults.flatMap(product =>
+    product.images.map((img, vi) => {
+      const altBase = S_bulkAltTexts[product.sku] || '';
+      return {
+        SKU:         product.sku,
+        View:        img.view,
+        'Alt Text':  altBase ? `${altBase}-${vi+1}` : '',
+        'Product URL': img.url,
+        'Shopify URL': '',
+      };
+    })
+  );
+
+  try {
+    const res = await fetch('/api/sheet/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: rows.map(r => ({
+        sku:      r.SKU,
+        view:     r.View,
+        url:      r['Product URL'],
+        altText:  r['Alt Text'],
+        label:    r['Alt Text'],
+      })) }),
+    });
+    const blob = await res.blob();
+    dlBlob(blob, 'humanscale-bulk-images.xlsx');
+    showToast('⬇ Sheet downloaded');
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+function clearBulkResults() {
+  S_bulkResults  = [];
+  S_bulkAltTexts = {};
+  document.getElementById('bulk-alt-section').style.display = 'none';
+  document.getElementById('bulk-alt-list').innerHTML = '';
+  showToast('Bulk results cleared');
+  debouncedSave();
+}
+
+/* ─── MULTI-PRODUCT URL PROBE ─── */
+let multiProducts = [];
+
+function addMultiProduct() {
+  multiProducts.push({ url: '', sku: '' });
+  renderMultiList();
+  debouncedSave();
+}
+
+function removeMultiProduct(idx) {
+  multiProducts.splice(idx, 1);
+  renderMultiList();
+  debouncedSave();
+}
+
+function renderMultiList() {
+  const list = document.getElementById('multi-product-list');
+  if (!list) return;
+  if (!multiProducts.length) {
+    list.innerHTML = `<div style="color:var(--t3);font-size:11px;font-family:var(--mono);padding:8px 0;text-align:center">No products yet — click "+ Add Product"</div>`;
+    return;
+  }
+  list.innerHTML = multiProducts.map((p, i) => `
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:flex-end">
+      <div style="flex:1">
+        <label style="font-size:9px;color:var(--t3);font-family:var(--mono);display:block;margin-bottom:3px">RENDER URL</label>
+        <input type="text" value="${p.url.replace(/"/g,'&quot;')}"
+          placeholder="https://machinecore.thebigpicturemachine.com/Ziing3Server/Ziing3.aspx?req=render&…"
+          style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s"
+          oninput="multiProducts[${i}].url=this.value;debouncedSave()"
+          onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'">
+      </div>
+      <div style="width:200px;flex-shrink:0">
+        <label style="font-size:9px;color:var(--t3);font-family:var(--mono);display:block;margin-bottom:3px">SKU CODE</label>
+        <input type="text" value="${p.sku.replace(/"/g,'&quot;')}"
+          placeholder="S111CN74VN39XFSHNSC"
+          style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s"
+          oninput="multiProducts[${i}].sku=this.value;debouncedSave()"
+          onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'">
+      </div>
+      <button onclick="removeMultiProduct(${i})"
+        style="padding:7px 10px;background:none;border:1px solid rgba(255,77,109,0.3);border-radius:var(--r);color:var(--red);cursor:pointer;font-size:14px;flex-shrink:0;line-height:1;transition:background .15s"
+        onmouseover="this.style.background='rgba(255,77,109,0.08)'" onmouseout="this.style.background='none'">×</button>
+    </div>
+  `).join('');
+}
+
+async function runMultiProbe() {
+  const filled = multiProducts.filter(p => p.url.trim() || p.sku.trim());
+  if (!filled.length) { showToast('Add at least one product with a URL or SKU'); return; }
+
+  const btn  = document.getElementById('multi-probe-btn');
+  const log  = document.getElementById('probe-log');
+  const prog = document.getElementById('probe-progress');
+  btn.disabled = true;
+  prog.style.display = 'block';
+  log.innerHTML = '';
+  logLine(`<span class="ly">▶ Probing ${filled.length} product(s)…</span>`, log);
+
+  try {
+    const res = await fetch('/api/probe/url-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products: filled }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    S.probeResults = data.products.flatMap(p => p.images);
+
+    const section = document.getElementById('multi-results-section');
+    section.style.display = 'block';
+    section.innerHTML = '';
+    document.getElementById('img-grid').style.display = 'none';
+    document.getElementById('probe-empty').style.display = 'none';
+
+    data.products.forEach(product => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'margin-bottom:14px;background:var(--s1);border:1px solid var(--border);border-radius:14px;overflow:hidden;animation:fadeUp .2s ease both';
+
+      const imagesHtml = product.images.length
+        ? product.images.map(img => `
+            <div style="background:var(--s1)">
+              <div style="background:#fff;aspect-ratio:1/1"><img src="${img.url}" style="width:100%;height:100%;object-fit:contain;display:block" alt="${img.label}" loading="lazy"></div>
+              <div style="padding:8px 10px">
+                <div style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--text)">${img.label}</div>
+                <div style="font-size:9px;color:var(--t3);font-family:var(--mono)">${img.angle}</div>
+              </div>
+            </div>`).join('')
+        : `<div style="padding:24px;color:var(--red);font-family:var(--mono);font-size:11px;grid-column:1/-1">✗ No images found — ${product.error || 'check the URL or SKU format'}</div>`;
+
+      wrap.innerHTML = `
+        <div style="padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:var(--text)">${product.sku}</span>
+          <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${product.images.length}/3 views</span>
+          ${product.images.length === 3 ? '<span style="font-size:10px;color:var(--green);font-family:var(--mono);margin-left:auto">✓ complete</span>' : ''}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)">${imagesHtml}</div>`;
+      section.appendChild(wrap);
+    });
+
+    document.getElementById('st-found').textContent = data.total;
+    document.getElementById('sheet-empty').style.display = 'none';
+    document.getElementById('sheet-ready').style.display = 'block';
+    document.getElementById('nav-1').classList.add('done');
+    logLine(`<span class="lg">✓ ${data.total} image(s) across ${data.products.length} product(s)</span>`, log);
+    showToast(`✓ ${data.total} images ready`);
+    saveSession();
+  } catch(e) {
+    logLine(`<span class="lr">✗ ${e.message}</span>`, log);
+    showToast('Error: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+/* ─── SESSION STORAGE ─── */
+const SS_KEY = 'hs_pipeline_v1';
+let _saveTimer = null;
+
+function debouncedSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveSession, 400);
+}
+
+function saveSession() {
+  try {
+    sessionStorage.setItem(SS_KEY, JSON.stringify({
+      skus:        S.skus,
+      probeResults: S.probeResults,
+      uploadedRows: S.uploadedRows,
+      jsonData:    S.jsonData,
+      localResults: S.localResults,
+      localJsonData: S.localJsonData,
+      store:       document.getElementById('shopify-store').value,
+      token:       document.getElementById('shopify-token').value,
+      ver:         document.getElementById('shopify-ver').value,
+      skuInput:    document.getElementById('sku-input').value,
+      urlInput:    document.getElementById('url-input').value,
+      panel:       document.querySelector('.panel.active')?.id?.replace('panel-', '') || '1',
+      probeMode:   document.getElementById('tab-sku').classList.contains('active') ? 'sku' : document.getElementById('tab-multi').classList.contains('active') ? 'multi' : 'url',
+      multiProducts:   multiProducts,
+      bulkTemplateUrl: document.getElementById('bulk-template-url')?.value || '',
+      bulkSkusInput:   document.getElementById('bulk-skus-input')?.value || '',
+      bulkUrlLocked,
+      bulkResults:     S_bulkResults,
+      bulkAltTexts:    S_bulkAltTexts,
+      navDone:     [1,2,3,4].filter(n => document.getElementById(`nav-${n}`)?.classList.contains('done')),
+      stFound:     document.getElementById('st-found').textContent,
+    }));
+  } catch(e) { /* storage full or unavailable */ }
+}
+
+function loadSession() {
+  let session;
+  try { session = JSON.parse(sessionStorage.getItem(SS_KEY)); } catch { return; }
+  if (!session) return;
+
+  S.skus          = session.skus          || [];
+  S.probeResults  = session.probeResults  || [];
+  S.uploadedRows  = session.uploadedRows  || [];
+  S.jsonData      = session.jsonData      || {};
+  S.localResults  = session.localResults  || [];
+  S.localJsonData = session.localJsonData || {};
+
+  if (session.store)   document.getElementById('shopify-store').value = session.store;
+  if (session.token)   document.getElementById('shopify-token').value = session.token;
+  if (session.ver)     document.getElementById('shopify-ver').value   = session.ver;
+  if (session.skuInput) document.getElementById('sku-input').value    = session.skuInput;
+  if (session.urlInput) document.getElementById('url-input').value    = session.urlInput;
+
+  if (S.skus.length) renderChips();
+
+  if (S.probeResults.length) {
+    const grid = document.getElementById('img-grid');
+    grid.innerHTML = '';
+    grid.style.display = 'grid';
+    S.probeResults.forEach(r => {
+      const c = document.createElement('div');
+      c.className = 'img-card';
+      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label || r.sku || ''}"><div class="img-card-info"><div class="img-card-view">${r.label || ('View ' + r.view)}</div><div class="img-card-sku">${r.sku || r.angle || ''}</div></div>`;
+      grid.appendChild(c);
+    });
+    document.getElementById('probe-empty').style.display = 'none';
+    document.getElementById('st-found').textContent = session.stFound || S.probeResults.length;
+    document.getElementById('sheet-empty').style.display = 'none';
+    document.getElementById('sheet-ready').style.display = 'block';
+  }
+
+  if (Object.keys(S.jsonData).length) {
+    document.getElementById('json-empty').style.display = 'none';
+    document.getElementById('json-box').style.display   = 'block';
+    document.getElementById('json-out').innerHTML = syntaxHL(JSON.stringify(S.jsonData, null, 2));
+    document.getElementById('push-box').style.display   = 'block';
+  }
+
+  (session.navDone || []).forEach(n => document.getElementById(`nav-${n}`)?.classList.add('done'));
+
+  if (session.multiProducts && session.multiProducts.length) {
+    multiProducts = session.multiProducts;
+    renderMultiList();
+  }
+  if (session.bulkTemplateUrl) document.getElementById('bulk-template-url').value = session.bulkTemplateUrl;
+  if (session.bulkSkusInput)   document.getElementById('bulk-skus-input').value   = session.bulkSkusInput;
+  if (session.bulkUrlLocked)   { bulkUrlLocked = true; updateBulkLock(); }
+  if (session.bulkResults && session.bulkResults.length) {
+    S_bulkResults  = session.bulkResults;
+    S_bulkAltTexts = session.bulkAltTexts || {};
+    renderBulkPreview();
+    renderBulkAltEditor();
+  }
+  if (session.probeMode) switchProbeMode(session.probeMode);
+  if (session.panel)     goPanel(parseInt(session.panel));
+}
+
+function resetSession() {
+  sessionStorage.removeItem(SS_KEY);
+
+  S.skus = []; S.probeResults = []; S.uploadedRows = [];
+  S.jsonData = {}; S.localResults = []; S.localJsonData = {};
+
+  multiProducts = []; renderMultiList();
+  S_bulkResults = []; S_bulkAltTexts = {}; bulkUrlLocked = false;
+  const btu = document.getElementById('bulk-template-url'); if (btu) btu.value = '';
+  const bsi = document.getElementById('bulk-skus-input');   if (bsi) bsi.value = '';
+  updateBulkLock();
+  const bas = document.getElementById('bulk-alt-section');    if (bas) bas.style.display = 'none';
+  const brp = document.getElementById('bulk-results-preview'); if (brp) { brp.style.display = 'none'; brp.innerHTML = ''; }
+  document.getElementById('multi-results-section').style.display = 'none';
+  document.getElementById('sku-input').value = '';
+  document.getElementById('url-input').value = '';
+  document.getElementById('chips').innerHTML  = '';
+
+  const grid = document.getElementById('img-grid');
+  grid.innerHTML = ''; grid.style.display = 'none';
+  document.getElementById('probe-empty').style.display = '';
+  document.getElementById('probe-progress').style.display = 'none';
+  document.getElementById('st-skus').textContent  = '0';
+  document.getElementById('st-found').textContent = '0';
+  document.getElementById('sheet-empty').style.display = '';
+  document.getElementById('sheet-ready').style.display = 'none';
+  document.getElementById('json-box').style.display   = 'none';
+  document.getElementById('json-empty').style.display = '';
+  document.getElementById('push-box').style.display   = 'none';
+
+  [1,2,3,4].forEach(n => document.getElementById(`nav-${n}`)?.classList.remove('done'));
+  switchProbeMode('sku');
+  goPanel(1);
+  showToast('Session cleared');
+}
+
+loadSession();
 
 function clearLocalImages() {
   localFiles.forEach(item => URL.revokeObjectURL(item.objectUrl));
