@@ -248,13 +248,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
       <div id="sku-probe-mode">
         <div class="box">
           <div class="box-title"><span class="dot"></span> SKUs</div>
-          <div class="field-full">
-            <label>SKUs — one per line or comma separated</label>
-            <textarea class="big-textarea" id="sku-input" placeholder="S111BN43PS30XFSHNSC" oninput="debouncedSave()"></textarea>
-          </div>
-          <div class="chips" id="chips"></div>
-          <div class="btn-group">
-            <button class="btn btn-green" id="probe-btn" onclick="runProbe()">Probe images</button>
+          <div class="notice yellow">
+            <strong>A reference URL is required.</strong> Use the <strong>Bulk URL + SKUs</strong> tab — paste one reference render URL for the product family, then enter all SKU codes. The system substitutes each SKU's frame/mesh/material into the URL automatically. Works for any product family.
           </div>
         </div>
       </div>
@@ -264,9 +259,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
         <div class="box">
           <div class="box-title"><span class="dot y"></span> Multi-Product — URL + SKU</div>
           <div class="notice yellow">
-            <strong>Two modes per row:</strong><br>
-            · <strong>SKU only</strong> (leave URL blank) — for decodable chairs like Diffrient Smart (S11…). SKU builds the URL automatically.<br>
-            · <strong>URL + SKU label</strong> — for other families (Liberty, Freedom, etc.). Paste the chair's render URL; SKU is used as a label only.
+            <strong>Each row needs a reference URL + SKU:</strong><br>
+            · Paste the product family's render URL — this drives the layer structure, z-orders, and all settings.<br>
+            · Enter the SKU code — frame/mesh/material codes are automatically substituted from the SKU into the URL.<br>
+            · <strong>URL only</strong> (leave SKU blank) — URL is used as-is with no substitution; SKU column becomes a label.
           </div>
           <div id="multi-product-list" style="margin-bottom:14px">
             <div style="color:var(--t3);font-size:11px;font-family:var(--mono);padding:8px 0;text-align:center">No products yet — click "+ Add Product"</div>

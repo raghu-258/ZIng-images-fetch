@@ -12,15 +12,14 @@ const THREE_ANGLES = [
 /* ─── SKU parsers ─── */
 
 function parseS11Config(sku) {
-  // S{model}C{MESH_3chars}{MAT}X  e.g. S111CN74VN39X
-  const m = sku.toUpperCase().match(/^S\d+C([A-Z\d]{3})([A-Z\d]+)X/);
+  // S{model}{frame}{MESH_3chars}{MAT}X  e.g. S111CN74VN39X, S111BN34O010X
+  const m = sku.toUpperCase().match(/^S\d+([A-Z])([A-Z\d]{3})([A-Z\d]+)X/);
   if (!m) return null;
-  const frameChar = sku.toUpperCase()[3]; // position 3 = frame letter
-  const frameMap  = { B: 'b', C: 'c', D: 'd' };
+  const frameMap = { B: 'b', C: 'c', D: 'd' };
   return {
-    frame: frameMap[frameChar] || 'c',
-    mesh:  m[1].toLowerCase(),
-    mat:   m[2].toLowerCase(),
+    frame: frameMap[m[1]] || 'c',
+    mesh:  m[2].toLowerCase(),
+    mat:   m[3].toLowerCase(),
   };
 }
 
@@ -45,8 +44,9 @@ function parseSku(sku) {
 
 /*
   Apply a SKU's mat/mesh/frame codes into a URL template.
-  The URL drives the product family structure; the SKU drives
-  the specific colour/material configuration.
+  The reference URL owns everything (layer names, z-orders, structure).
+  The SKU only supplies three values: frame code, mesh code, material code.
+  Works for any product family URL — no hardcoded layer names.
   Returns the substituted URL, or null if SKU can't be parsed.
 */
 function applyConfigToUrl(templateUrl, sku) {
@@ -54,38 +54,15 @@ function applyConfigToUrl(templateUrl, sku) {
   if (!cfg) return null;
 
   let url = templateUrl;
-  // material:  $mat=xx  →  $mat={cfg.mat}
-  url = url.replace(/(\$mat=)[a-z0-9]+/g,            `$1${cfg.mat}`);
-  // mesh:      mesh-mesh-mesh1_xx  →  mesh-mesh-mesh1_{cfg.mesh}
-  url = url.replace(/(mesh-mesh-mesh1_)[a-z0-9]+/g,  `$1${cfg.mesh}`);
-  // frame:     fram1_x / fram2_x  →  fram1_{cfg.frame} etc.
-  url = url.replace(/(fram1_)[a-z]/g,                `$1${cfg.frame}`);
-  url = url.replace(/(fram2_)[a-z]/g,                `$1${cfg.frame}`);
+  // $mat=XX  →  $mat={cfg.mat}   (any material code length)
+  url = url.replace(/(\$mat=)[a-zA-Z0-9]+/g,  `$1${cfg.mat}`);
+  // meshN_XX  →  meshN_{cfg.mesh}  (mesh1_, mesh2_, any numeric suffix)
+  url = url.replace(/(mesh\d+_)[a-zA-Z0-9]+/g, `$1${cfg.mesh}`);
+  // framN_X  →  framN_{cfg.frame}  (fram1_, fram2_, fram3_, any numeric suffix)
+  url = url.replace(/(fram\d+_)[a-zA-Z]/g,     `$1${cfg.frame}`);
   return url;
 }
 
-/* Build a full render URL from scratch for S11 SKUs */
-function buildRenderUrl(sku, angle) {
-  const upper = sku.toUpperCase();
-  if (upper.startsWith('S11')) {
-    const cfg = parseS11Config(upper);
-    if (!cfg) return null;
-    const layers = [
-      'root-stitches-fs_stat$lt=SO$zo=2',
-      `root-stitches-fs-uphl1_up00$lt=RO$zo=3$mat=${cfg.mat}`,
-      'root-stitches-fs-fram1_c$lt=SO$zo=36',
-      'root-stitches-fs-basescolor-mb-bases-c_drop$lt=SO$zo=50',
-      'root-stitches-fs-basescolor-mb-bases-c_stat$lt=SO$zo=51',
-      'root-stitches-fs-basescolor-mb-bases-c-fram2_c$lt=SO$zo=54',
-      'root-stitches-fs-arms-1_stat$lt=SO$zo=95',
-      'root-stitches-fs-arms-1-fram2_c$lt=SO$zo=98',
-      'root-stitches-fs-arms-1-mesh-mesh_stat$lt=SO$zo=100',
-      `root-stitches-fs-arms-1-mesh-mesh-mesh1_${cfg.mesh}$lt=SO$zo=101`,
-    ];
-    return `https://machinecore.thebigpicturemachine.com/Ziing3Server/Ziing3.aspx?req=render&humanscale-smart-s11TV3_${angle}&fmt=jpg&bgc=ffffff&size=734&${layers.map(l => `layer=${l}`).join('&')}`;
-  }
-  return null;
-}
 
 /* Shared fetch helper */
 async function probeUrl(url) {
@@ -98,30 +75,9 @@ async function probeUrl(url) {
    Body: { skus: string[] }
 ───────────────────────────────────────────────────────────── */
 router.post('/', async (req, res) => {
-  const { skus = [] } = req.body;
-  if (!skus.length) return res.status(400).json({ error: 'No SKUs provided' });
-
-  const results = [];
-  await Promise.all(skus.map(async (sku) => {
-    const skuUpper = sku.toUpperCase();
-    if (!buildRenderUrl(skuUpper, '0000')) {
-      console.log(`[PROBE] ✗ ${skuUpper} → unsupported SKU format`);
-      return;
-    }
-    await Promise.all(THREE_ANGLES.map(async ({ suffix, label }, idx) => {
-      const url = buildRenderUrl(skuUpper, suffix);
-      try {
-        const r = await probeUrl(url);
-        if (r && (r.ok || r.status === 200)) {
-          results.push({ sku: skuUpper, view: idx + 1, url, angle: suffix, label });
-          console.log(`[PROBE] ✓ ${skuUpper} ${label}`);
-        }
-      } catch (e) { console.log(`[PROBE] ✗ ${skuUpper} ${label} → ${e.message}`); }
-    }));
-  }));
-
-  results.sort((a, b) => a.sku.localeCompare(b.sku) || a.view - b.view);
-  res.json({ total: results.length, results });
+  res.status(400).json({
+    error: 'SKU-only probe requires a reference URL. Use the "Bulk URL + SKUs" tab: paste one reference render URL for the product family and enter all SKU codes — the system will substitute each SKU\'s frame/mesh/material automatically.',
+  });
 });
 
 /* ─────────────────────────────────────────────────────────────
