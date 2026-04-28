@@ -183,6 +183,36 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
 .push-status{border-radius:var(--r);padding:10px 14px;font-family:var(--mono);font-size:11px;line-height:1.6;display:none;}
 .push-status.ok{background:rgba(0,229,160,0.07);border:1px solid rgba(0,229,160,0.2);color:var(--green);}
 .push-status.err{background:rgba(255,77,109,0.07);border:1px solid rgba(255,77,109,0.2);color:var(--red);}
+.files-search-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.files-search-bar input{flex:1;min-width:180px;padding:9px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:12px;outline:none;transition:border .15s;}
+.files-search-bar input:focus{border-color:var(--blue);}
+.files-bulk-bar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:12px 14px;background:rgba(76,201,240,0.05);border:1px solid rgba(76,201,240,0.15);border-radius:var(--r);margin-bottom:16px;}
+.files-bulk-bar input{flex:1;min-width:180px;padding:8px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s;}
+.files-bulk-bar input:focus{border-color:var(--blue);}
+.files-grid{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow-y:auto;padding-right:4px;}
+.files-grid::-webkit-scrollbar{width:4px;} .files-grid::-webkit-scrollbar-track{background:transparent;} .files-grid::-webkit-scrollbar-thumb{background:var(--s3);border-radius:4px;}
+.file-row{display:grid;grid-template-columns:22px 56px 1fr auto;gap:10px;align-items:center;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);transition:border .15s;}
+.file-row:hover{border-color:var(--b2);}
+.file-row.modified{border-color:rgba(76,201,240,0.35);background:rgba(76,201,240,0.04);}
+.file-thumb{width:56px;height:56px;border-radius:5px;object-fit:contain;background:#fff;display:block;}
+.file-thumb-empty{width:56px;height:56px;border-radius:5px;background:var(--s3);display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:20px;}
+.file-alt-input{width:100%;padding:6px 9px;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s;}
+.file-alt-input:focus{border-color:var(--blue);}
+.file-orig-alt{font-size:9px;color:var(--t3);font-family:var(--mono);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.files-footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.files-status{font-size:11px;font-family:var(--mono);color:var(--t2);}
+.file-chk{width:15px;height:15px;accent-color:var(--blue);cursor:pointer;}
+.alt-search-row{display:flex;gap:8px;margin-bottom:14px;}
+.alt-search-row input{flex:1;padding:8px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s;}
+.alt-search-row input:focus{border-color:var(--yellow);}
+.alt-result-item{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;}
+.alt-result-thumb{width:40px;height:40px;border-radius:5px;object-fit:contain;background:#fff;flex-shrink:0;}
+.alt-rename-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border);margin-top:4px;}
+.alt-rename-row .rf{flex:1;min-width:140px;}
+.alt-rename-row .rf label{font-size:9px;color:var(--t3);font-family:var(--mono);display:block;margin-bottom:4px;}
+.alt-rename-row .rf input{width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s;}
+.alt-rename-row .rf input:focus{border-color:var(--yellow);}
+.alt-match-badge{font-size:10px;font-family:var(--mono);color:var(--t2);margin-bottom:10px;}
 </style>
 </head>
 <body>
@@ -202,6 +232,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
     <button class="step-btn" id="nav-2" onclick="goPanel(2)"><div class="step-num">2</div> Edit &amp; Download<span class="step-done-icon">✓</span></button>
     <button class="step-btn" id="nav-3" onclick="goPanel(3)"><div class="step-num">3</div> Upload to Shopify<span class="step-done-icon">✓</span></button>
     <button class="step-btn" id="nav-4" onclick="goPanel(4)"><div class="step-num">4</div> Generate JSON<span class="step-done-icon">✓</span></button>
+    <div style="height:1px;background:var(--border);margin:10px 0 8px;"></div>
+    <button class="step-btn" id="nav-5" onclick="goPanel(5)" style="color:var(--blue)"><div class="step-num" style="background:rgba(76,201,240,0.12);color:var(--blue)">✎</div> Files Alt Text</button>
   </div>
   <div style="padding:0 10px 8px;">
     <button onclick="resetSession()" style="width:100%;padding:7px 10px;border:1px solid rgba(255,77,109,0.3);border-radius:var(--r);background:none;color:var(--red);font-family:var(--sans);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;" onmouseover="this.style.background='rgba(255,77,109,0.08)'" onmouseout="this.style.background='none'">✕ Reset session</button>
@@ -485,6 +517,45 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
         </div>
         <div class="json-out" id="json-out"></div>
       </div>
+
+      <!-- ── BULK ALT TEXT SEARCH & EDIT ── -->
+      <div class="box" id="bulk-alt-edit-box">
+        <div class="box-title" style="justify-content:space-between">
+          <div><span class="dot y"></span> Bulk Alt Text Editor</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span id="alt-key-count" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
+            <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="Load a gallery-metafield.json file">
+              ⬆ Load JSON
+              <input type="file" accept=".json" style="display:none" onchange="loadAltJsonFile(event)">
+            </label>
+          </div>
+        </div>
+        <div id="alt-no-data" style="padding:10px 0 4px;font-size:11px;color:var(--t3);font-family:var(--mono)">
+          Generate JSON (Step 4) or load a <strong style="color:var(--t2)">gallery-metafield.json</strong> file to begin editing.
+        </div>
+        <div id="alt-editor-body" style="display:none">
+          <div class="alt-search-row">
+            <input type="text" id="alt-search-input" placeholder="Search JSON keys by alt text…" oninput="filterAltText(this.value)" onkeydown="if(event.key==='Escape')clearAltSearch()">
+            <button class="btn btn-ghost btn-sm" onclick="clearAltSearch()">Clear</button>
+          </div>
+          <div id="alt-filter-results" style="display:none">
+            <div class="alt-match-badge" id="alt-match-count"></div>
+            <div id="alt-result-list"></div>
+            <div class="alt-rename-row" id="alt-rename-controls" style="display:none">
+              <div class="rf">
+                <label>FIND IN KEY</label>
+                <input type="text" id="bulk-find-input" placeholder="Text to find…" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'">
+              </div>
+              <div class="rf">
+                <label>REPLACE WITH</label>
+                <input type="text" id="bulk-replace-input" placeholder="New text…" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'" onkeydown="if(event.key==='Enter')applyBulkRename()">
+              </div>
+              <button class="btn btn-green btn-sm" onclick="applyBulkRename()">Apply to matched</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="json-empty" class="empty"><div class="empty-icon">{}</div><div class="empty-title">Complete Steps 1–3</div></div>
 
       <!-- ── PUSH TO SHOPIFY ── -->
@@ -530,6 +601,65 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
       </div>
     </div>
   </div>
+
+  <!-- ══ PANEL 5 — FILES ALT TEXT EDITOR ══ -->
+  <div class="panel" id="panel-5">
+    <div class="page-header">
+      <div class="page-title">Files Alt Text Editor</div>
+      <div class="page-sub">Search Shopify files by alt text, edit individually or in bulk, then save all changes at once.</div>
+    </div>
+    <div class="content">
+
+      <!-- Search bar -->
+      <div class="box">
+        <div class="box-title"><span class="dot b"></span> Search Files</div>
+        <div class="files-search-bar">
+          <input type="text" id="files-search-input" placeholder="Search by alt text… (leave blank to load all images)"
+            onkeydown="if(event.key==='Enter')searchFiles()">
+          <button class="btn btn-green" onclick="searchFiles()" id="files-search-btn">Search</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadMoreFiles()" id="files-load-more" style="display:none">Load more</button>
+        </div>
+        <div id="files-info" style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:-6px;display:none"></div>
+      </div>
+
+      <!-- Bulk apply bar (shown when files are loaded) -->
+      <div class="box" id="files-bulk-box" style="display:none">
+        <div class="box-title" style="justify-content:space-between">
+          <div><span class="dot b"></span> Bulk Apply</div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t2);font-family:var(--mono);cursor:pointer">
+            <input type="checkbox" id="files-select-all" onchange="toggleSelectAll(this.checked)" style="accent-color:var(--blue)"> Select all
+          </label>
+        </div>
+        <div class="files-bulk-bar">
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:4px">NEW ALT TEXT FOR SELECTED FILES</div>
+            <input type="text" id="files-bulk-input" placeholder="e.g. Freedom Chair Side View" onkeydown="if(event.key==='Enter')applyBulkAlt()">
+          </div>
+          <button class="btn btn-blue" onclick="applyBulkAlt()" style="background:var(--blue);color:#000;font-weight:700">Apply to selected</button>
+        </div>
+      </div>
+
+      <!-- Files grid -->
+      <div class="box" id="files-grid-box" style="display:none">
+        <div class="box-title" style="justify-content:space-between">
+          <div><span class="dot b"></span> Files <span id="files-count-badge" style="font-weight:400;color:var(--t3)"></span></div>
+          <span id="files-modified-badge" style="font-size:10px;font-family:var(--mono);color:var(--blue);display:none"></span>
+        </div>
+        <div class="files-grid" id="files-grid"></div>
+        <div class="files-footer">
+          <button class="btn btn-green" id="files-save-btn" onclick="saveAltChanges()" style="display:none">Save changes</button>
+          <span class="files-status" id="files-save-status"></span>
+        </div>
+      </div>
+
+      <div id="files-empty" class="empty">
+        <div class="empty-icon">✎</div>
+        <div class="empty-title">Search files to begin</div>
+        <div class="empty-sub">Make sure Shopify credentials are filled in the sidebar</div>
+      </div>
+    </div>
+  </div>
+
 </main>
 </div>
 <div class="toast" id="toast"></div>
@@ -596,21 +726,33 @@ async function runProbe() {
     S.probeResults = data.results;
     const grid = document.getElementById('img-grid');
     grid.innerHTML = '';
-    grid.style.display = 'grid';
-    S.probeResults.forEach((r, i) => {
-      const c = document.createElement('div');
-      c.className = 'img-card';
-      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label || r.sku}"><div class="img-card-info"><div class="img-card-view">${r.label || ('View ' + r.view)}</div><div class="img-card-sku">${r.sku}</div></div>`;
-      grid.appendChild(c);
-    });
+    if (S.probeResults.length > 0) {
+      grid.style.display = 'grid';
+      S.probeResults.forEach((r, i) => {
+        const c = document.createElement('div');
+        c.className = 'img-card';
+        c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label || r.sku}"><div class="img-card-info"><div class="img-card-view">${r.label || ('View ' + r.view)}</div><div class="img-card-sku">${r.sku}</div></div>`;
+        grid.appendChild(c);
+      });
+      document.getElementById('probe-empty').style.display = 'none';
+    } else {
+      grid.style.display = 'none';
+      document.getElementById('probe-empty').style.display = 'flex';
+    }
 
-    document.getElementById('probe-empty').style.display = 'none';
     document.getElementById('st-found').textContent = data.total;
     document.getElementById('nav-1').classList.add('done');
     document.getElementById('sheet-empty').style.display = 'none';
     document.getElementById('sheet-ready').style.display = 'block';
-    logLine(`<span class="lg">✓ ${data.total} images found</span>`, log);
-    showToast(`✓ ${data.total} images found`);
+    logLine(`<span class="lg">✓ ${data.total} image(s) found</span>`, log);
+    if (data.failed && data.failed.length) {
+      data.failed.forEach(f => {
+        logLine(`<span class="lr">✗ ${f.sku} — ${f.reason}</span>`, log);
+      });
+    }
+    showToast(data.failed && data.failed.length
+      ? `✓ ${data.total} found — ${data.failed.length} SKU(s) had no images`
+      : `✓ ${data.total} images found`);
     saveSession();
   } catch(e) {
     logLine(`<span class="lr">✗ ${e.message}</span>`, log);
@@ -864,6 +1006,7 @@ async function generateJSON() {
   document.getElementById('json-box').style.display = 'block';
   document.getElementById('json-out').innerHTML = syntaxHL(JSON.stringify(S.jsonData, null, 2));
   document.getElementById('push-box').style.display = 'block';
+  showAltEditor();
   document.getElementById('nav-4').classList.add('done');
   showToast(`✓ ${kc} JSON keys generated from images with Shopify URLs`);
   saveSession();
@@ -1281,8 +1424,15 @@ async function runBulkProbe() {
     document.getElementById('img-grid').style.display = 'none';
     document.getElementById('multi-results-section').style.display = 'none';
 
-    logLine(`<span class="lg">✓ ${data.total} images across ${data.products.length} SKU(s)</span>`, log);
-    showToast(`✓ ${data.total} images ready — go to Step 2 to add alt texts`);
+    const failedSkus = data.products.filter(p => !p.images.length);
+    const okSkus     = data.products.filter(p =>  p.images.length);
+    failedSkus.forEach(p =>
+      logLine(`<span class="lr">✗ ${p.sku} — ${p.notRecognised ? 'SKU format not recognised' : 'no images found'}</span>`, log)
+    );
+    logLine(`<span class="lg">✓ ${data.total} image(s) across ${okSkus.length} SKU(s)${failedSkus.length ? ` — ${failedSkus.length} SKU(s) returned no images` : ''}</span>`, log);
+    showToast(failedSkus.length
+      ? `⚠ ${okSkus.length}/${data.products.length} SKUs found images — ${failedSkus.length} failed`
+      : `✓ ${data.total} images ready — go to Step 2 to add alt texts`);
 
     renderBulkPreview();
     renderBulkAltEditor();
@@ -1315,12 +1465,15 @@ function renderBulkPreview() {
           </div>`).join('')
       : `<div style="padding:20px;color:var(--red);font-family:var(--mono);font-size:11px;grid-column:1/-1">✗ No images found</div>`;
 
+    const noImages = product.images.length === 0;
     return `
-      <div style="margin-bottom:10px;background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow:hidden;animation:fadeUp .2s ease both">
-        <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-          <span style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--text)">${product.sku}</span>
+      <div style="margin-bottom:10px;background:var(--s1);border:1px solid ${noImages ? 'rgba(255,77,109,0.4)' : 'var(--border)'};border-radius:12px;overflow:hidden;animation:fadeUp .2s ease both">
+        <div style="padding:10px 14px;border-bottom:1px solid ${noImages ? 'rgba(255,77,109,0.25)' : 'var(--border)'};display:flex;align-items:center;gap:10px;${noImages ? 'background:rgba(255,77,109,0.05)' : ''}">
+          <span style="font-size:12px;font-weight:700;font-family:var(--mono);color:${noImages ? 'var(--red)' : 'var(--text)'}">${product.sku}</span>
           <span style="font-size:9px;color:var(--t3);font-family:var(--mono)">${product.images.length}/3 views</span>
-          ${product.images.length === 3 ? '<span style="font-size:9px;color:var(--green);font-family:var(--mono);margin-left:auto">✓ complete</span>' : ''}
+          ${noImages
+            ? '<span style="font-size:9px;color:var(--red);font-family:var(--mono);margin-left:auto;font-weight:700">✗ No images found</span>'
+            : product.images.length === 3 ? '<span style="font-size:9px;color:var(--green);font-family:var(--mono);margin-left:auto">✓ complete</span>' : ''}
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)">${imagesHtml}</div>
       </div>`;
@@ -1334,6 +1487,20 @@ function renderBulkAltEditor() {
 
   section.style.display = 'block';
   list.innerHTML = S_bulkResults.map((product, pi) => {
+    if (!product.images.length) {
+      const reason = product.notRecognised
+        ? 'SKU format not recognised — cannot apply config to URL'
+        : 'No images found — all angles returned errors';
+      return `
+        <div style="background:rgba(255,77,109,0.05);border:1px solid rgba(255,77,109,0.3);border-radius:var(--r2);padding:12px 14px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:16px;color:var(--red)">✗</span>
+          <div>
+            <div style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--red)">${product.sku}</div>
+            <div style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:2px">${reason}</div>
+          </div>
+        </div>`;
+    }
+
     const altBase = S_bulkAltTexts[product.sku] || '';
     const previewHtml = altBase
       ? product.images.map((img, vi) =>
@@ -1626,7 +1793,8 @@ function loadSession() {
     document.getElementById('json-empty').style.display = 'none';
     document.getElementById('json-box').style.display   = 'block';
     document.getElementById('json-out').innerHTML = syntaxHL(JSON.stringify(S.jsonData, null, 2));
-    document.getElementById('push-box').style.display   = 'block';
+    document.getElementById('push-box').style.display = 'block';
+    showAltEditor();
   }
 
   (session.navDone || []).forEach(n => document.getElementById(`nav-${n}`)?.classList.add('done'));
@@ -1674,9 +1842,13 @@ function resetSession() {
   document.getElementById('st-found').textContent = '0';
   document.getElementById('sheet-empty').style.display = '';
   document.getElementById('sheet-ready').style.display = 'none';
-  document.getElementById('json-box').style.display   = 'none';
-  document.getElementById('json-empty').style.display = '';
-  document.getElementById('push-box').style.display   = 'none';
+  document.getElementById('json-box').style.display          = 'none';
+  document.getElementById('json-empty').style.display        = '';
+  document.getElementById('push-box').style.display          = 'none';
+  clearAltSearch();
+  document.getElementById('alt-editor-body').style.display = 'none';
+  document.getElementById('alt-no-data').style.display     = 'block';
+  document.getElementById('alt-key-count').textContent     = '';
 
   [1,2,3,4].forEach(n => document.getElementById(`nav-${n}`)?.classList.remove('done'));
   switchProbeMode('sku');
@@ -1789,6 +1961,326 @@ async function runLocalUpload() {
   } catch (e) {
     logLine(`<span class="lr">✗ ${e.message}</span>`, log);
     showToast('❌ Upload error: ' + e.message);
+  }
+
+  btn.disabled = false;
+}
+
+/* ─── BULK ALT TEXT SEARCH & EDIT ─── */
+let _altFilteredKeys = [];
+
+function showAltEditor() {
+  const kc = Object.keys(S.jsonData).length;
+  document.getElementById('alt-no-data').style.display     = kc ? 'none'  : 'block';
+  document.getElementById('alt-editor-body').style.display = kc ? 'block' : 'none';
+  document.getElementById('alt-key-count').textContent     = kc ? `${kc} keys loaded` : '';
+}
+
+async function loadAltJsonFile(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Expected a JSON object');
+    S.jsonData = parsed;
+    const kc = Object.keys(S.jsonData).length;
+    document.getElementById('json-empty').style.display = 'none';
+    document.getElementById('json-box').style.display   = 'block';
+    document.getElementById('json-out').innerHTML = syntaxHL(JSON.stringify(S.jsonData, null, 2));
+    showAltEditor();
+    showToast(`✓ Loaded ${kc} keys from ${file.name}`);
+    saveSession();
+  } catch(e) {
+    showToast('❌ ' + e.message);
+  }
+  evt.target.value = '';
+}
+
+function filterAltText(query) {
+  const q       = query.trim();
+  const resultsEl = document.getElementById('alt-filter-results');
+  const listEl    = document.getElementById('alt-result-list');
+  const countEl   = document.getElementById('alt-match-count');
+  const ctrlEl    = document.getElementById('alt-rename-controls');
+
+  if (!q) {
+    resultsEl.style.display = 'none';
+    _altFilteredKeys = [];
+    return;
+  }
+
+  const ql = q.toLowerCase();
+  _altFilteredKeys = Object.keys(S.jsonData).filter(k => k.toLowerCase().includes(ql));
+
+  resultsEl.style.display = 'block';
+
+  if (!_altFilteredKeys.length) {
+    countEl.innerHTML = `<span style="color:var(--t3)">No keys matching "<strong>${q}</strong>"</span>`;
+    listEl.innerHTML  = '';
+    ctrlEl.style.display = 'none';
+    return;
+  }
+
+  countEl.innerHTML = `<span style="color:var(--yellow);font-weight:600">${_altFilteredKeys.length}</span> <span style="color:var(--t3)">key(s) matching "<strong style="color:var(--text)">${q}</strong>"</span>`;
+  ctrlEl.style.display = 'flex';
+  document.getElementById('bulk-find-input').value = q;
+
+  listEl.innerHTML = _altFilteredKeys.map(key => {
+    const urls  = S.jsonData[key] || [];
+    const thumb = urls[0] || '';
+    return `
+      <div class="alt-result-item">
+        ${thumb
+          ? `<img class="alt-result-thumb" src="${thumb}" loading="lazy" alt="${key}">`
+          : `<div class="alt-result-thumb" style="background:var(--s3)"></div>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:600;font-family:var(--mono);color:var(--text)">${key}</div>
+          <div style="font-size:9px;color:var(--t3);font-family:var(--mono)">${urls.length} URL(s)</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function clearAltSearch() {
+  document.getElementById('alt-search-input').value = '';
+  document.getElementById('alt-filter-results').style.display = 'none';
+  document.getElementById('alt-result-list').innerHTML = '';
+  document.getElementById('alt-match-count').innerHTML = '';
+  document.getElementById('alt-rename-controls').style.display = 'none';
+  _altFilteredKeys = [];
+}
+
+function applyBulkRename() {
+  if (!_altFilteredKeys.length) { showToast('No filtered keys to rename'); return; }
+  const find    = document.getElementById('bulk-find-input').value;
+  const replace = document.getElementById('bulk-replace-input').value;
+  if (!find) { showToast('Enter the text to find'); return; }
+
+  let renamed = 0;
+  _altFilteredKeys.forEach(oldKey => {
+    const newKey = oldKey.split(find).join(replace);
+    if (newKey !== oldKey) {
+      if (S.jsonData[newKey]) {
+        S.jsonData[newKey] = [...S.jsonData[newKey], ...S.jsonData[oldKey]];
+      } else {
+        S.jsonData[newKey] = S.jsonData[oldKey];
+      }
+      delete S.jsonData[oldKey];
+      renamed++;
+    }
+  });
+
+  document.getElementById('json-out').innerHTML = syntaxHL(JSON.stringify(S.jsonData, null, 2));
+  showToast(renamed ? `✓ ${renamed} key(s) renamed` : 'No keys changed — check find text');
+  filterAltText(document.getElementById('alt-search-input').value);
+  saveSession();
+}
+
+/* ══ FILES ALT TEXT EDITOR ══ */
+async function safeJson(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch { throw new Error(res.ok ? 'Invalid server response' : `Server error ${res.status} — restart the server and try again`); }
+}
+
+let _filesData      = [];   // [{ id, alt, origAlt, url, selected }]
+let _filesNextCursor = null;
+let _filesHasMore   = false;
+
+function getShopifyCreds() {
+  return {
+    store:   document.getElementById('shopify-store').value.trim().replace(/^https?:\/\//, ''),
+    token:   document.getElementById('shopify-token').value.trim(),
+    version: document.getElementById('shopify-ver').value,
+  };
+}
+
+async function searchFiles() {
+  const { store, token, version } = getShopifyCreds();
+  if (!store || !token) { showToast('❌ Enter Shopify credentials in the sidebar'); return; }
+
+  const q   = document.getElementById('files-search-input').value.trim();
+  const btn = document.getElementById('files-search-btn');
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  _filesData       = [];
+  _filesNextCursor = null;
+  _filesHasMore    = false;
+
+  try {
+    const res  = await fetch('/api/files/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store, token, version, search: q }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(data.error);
+
+    _filesData = data.files.map(f => ({ ...f, origAlt: f.alt, selected: true }));
+    _filesNextCursor = data.pageInfo?.endCursor || null;
+    _filesHasMore    = data.pageInfo?.hasNextPage || false;
+
+    renderFilesGrid();
+    showToast(`✓ Loaded ${_filesData.length} file(s)`);
+  } catch (e) {
+    showToast('❌ ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Search';
+}
+
+async function loadMoreFiles() {
+  if (!_filesHasMore || !_filesNextCursor) return;
+  const { store, token, version } = getShopifyCreds();
+  const q   = document.getElementById('files-search-input').value.trim();
+  const btn = document.getElementById('files-load-more');
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+
+  try {
+    const res  = await fetch('/api/files/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store, token, version, search: q, cursor: _filesNextCursor }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(data.error);
+
+    const newFiles = data.files.map(f => ({ ...f, origAlt: f.alt, selected: true }));
+    _filesData = [..._filesData, ...newFiles];
+    _filesNextCursor = data.pageInfo?.endCursor || null;
+    _filesHasMore    = data.pageInfo?.hasNextPage || false;
+
+    renderFilesGrid();
+    showToast(`✓ ${newFiles.length} more loaded`);
+  } catch (e) {
+    showToast('❌ ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Load more';
+}
+
+function renderFilesGrid() {
+  const empty   = document.getElementById('files-empty');
+  const gridBox = document.getElementById('files-grid-box');
+  const bulkBox = document.getElementById('files-bulk-box');
+  const grid    = document.getElementById('files-grid');
+  const info    = document.getElementById('files-info');
+  const loadMore = document.getElementById('files-load-more');
+
+  if (!_filesData.length) {
+    empty.style.display   = 'block';
+    gridBox.style.display = 'none';
+    bulkBox.style.display = 'none';
+    info.style.display    = 'none';
+    loadMore.style.display = 'none';
+    return;
+  }
+
+  empty.style.display    = 'none';
+  gridBox.style.display  = 'block';
+  bulkBox.style.display  = 'block';
+  loadMore.style.display = _filesHasMore ? 'inline-flex' : 'none';
+
+  document.getElementById('files-count-badge').textContent = `(${_filesData.length}${_filesHasMore ? '+' : ''})`;
+  info.style.display = 'block';
+  info.textContent   = _filesHasMore ? `Showing ${_filesData.length} files — click "Load more" for next batch` : `${_filesData.length} file(s) total`;
+
+  grid.innerHTML = _filesData.map((f, i) => {
+    const isModified = f.alt !== f.origAlt;
+    return `
+      <div class="file-row${isModified ? ' modified' : ''}" id="frow-${i}">
+        <input type="checkbox" class="file-chk" ${f.selected ? 'checked' : ''}
+          onchange="_filesData[${i}].selected=this.checked;updateFilesFooter()">
+        ${f.url
+          ? `<img class="file-thumb" src="${f.url}" loading="lazy" alt="${f.alt}">`
+          : `<div class="file-thumb-empty">🖼</div>`}
+        <div style="min-width:0">
+          <input class="file-alt-input" type="text" value="${f.alt.replace(/"/g,'&quot;')}"
+            placeholder="Alt text…"
+            oninput="_filesData[${i}].alt=this.value;markRowModified(${i})"
+            onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--b2)'">
+          <div class="file-orig-alt" title="Original: ${f.origAlt}">Original: ${f.origAlt || '(none)'}</div>
+        </div>
+        <div style="font-size:9px;font-family:var(--mono);color:${isModified ? 'var(--blue)' : 'var(--t3)'}">
+          ${isModified ? 'edited' : '—'}
+        </div>
+      </div>`;
+  }).join('');
+
+  updateFilesFooter();
+}
+
+function markRowModified(i) {
+  const row = document.getElementById(`frow-${i}`);
+  const f   = _filesData[i];
+  const isModified = f.alt !== f.origAlt;
+  row.classList.toggle('modified', isModified);
+  row.querySelector('div:last-child').style.color = isModified ? 'var(--blue)' : 'var(--t3)';
+  row.querySelector('div:last-child').textContent = isModified ? 'edited' : '—';
+  updateFilesFooter();
+}
+
+function updateFilesFooter() {
+  const modified = _filesData.filter(f => f.alt !== f.origAlt);
+  const badge    = document.getElementById('files-modified-badge');
+  const saveBtn  = document.getElementById('files-save-btn');
+  badge.style.display  = modified.length ? 'block' : 'none';
+  badge.textContent    = `${modified.length} unsaved change(s)`;
+  saveBtn.style.display = modified.length ? 'inline-flex' : 'none';
+  saveBtn.textContent   = `Save ${modified.length} change(s) to Shopify`;
+}
+
+function toggleSelectAll(checked) {
+  _filesData.forEach(f => f.selected = checked);
+  document.querySelectorAll('.file-chk').forEach(c => c.checked = checked);
+  updateFilesFooter();
+}
+
+function applyBulkAlt() {
+  const text = document.getElementById('files-bulk-input').value;
+  if (!text.trim()) { showToast('Enter alt text to apply'); return; }
+  const selected = _filesData.filter(f => f.selected);
+  if (!selected.length) { showToast('No files selected'); return; }
+
+  selected.forEach(f => { f.alt = text.trim(); });
+  renderFilesGrid();
+  showToast(`✓ Applied to ${selected.length} file(s)`);
+}
+
+async function saveAltChanges() {
+  const { store, token, version } = getShopifyCreds();
+  if (!store || !token) { showToast('❌ Enter Shopify credentials'); return; }
+
+  const toSave = _filesData.filter(f => f.alt !== f.origAlt);
+  if (!toSave.length) { showToast('Nothing to save'); return; }
+
+  const btn    = document.getElementById('files-save-btn');
+  const status = document.getElementById('files-save-status');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  status.textContent = '';
+
+  try {
+    const res  = await fetch('/api/files/update-alt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store, token, version, files: toSave.map(f => ({ id: f.id, alt: f.alt })) }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(data.error);
+
+    toSave.forEach(f => { f.origAlt = f.alt; });
+    renderFilesGrid();
+    status.textContent = `✓ ${data.updated} file(s) updated`;
+    showToast(`✓ Saved ${data.updated} alt text(s) to Shopify`);
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+    showToast('❌ ' + e.message);
   }
 
   btn.disabled = false;

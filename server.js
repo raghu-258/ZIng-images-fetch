@@ -7,6 +7,7 @@ const probeRoutes  = require('./routes/probe');
 const sheetRoutes  = require('./routes/sheet');
 const uploadRoutes = require('./routes/upload');
 const jsonRoutes   = require('./routes/json');
+const filesRoutes  = require('./routes/files');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +22,7 @@ app.use('/api/probe',  probeRoutes);
 app.use('/api/sheet',  sheetRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/json',   jsonRoutes);
+app.use('/api/files',  filesRoutes);
 
 /* Serve frontend */
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

@@ -102,26 +102,36 @@ router.post('/', async (req, res) => {
   if (!skus.length) return res.status(400).json({ error: 'No SKUs provided' });
 
   const results = [];
+  const failed  = [];
   await Promise.all(skus.map(async (sku) => {
     const skuUpper = sku.toUpperCase();
     if (!buildRenderUrl(skuUpper, '0000')) {
       console.log(`[PROBE] ✗ ${skuUpper} → unsupported SKU format`);
+      failed.push({ sku: skuUpper, reason: 'Unsupported SKU format' });
       return;
     }
+    const found = [];
     await Promise.all(THREE_ANGLES.map(async ({ suffix, label }, idx) => {
       const url = buildRenderUrl(skuUpper, suffix);
       try {
         const r = await probeUrl(url);
         if (r && (r.ok || r.status === 200)) {
-          results.push({ sku: skuUpper, view: idx + 1, url, angle: suffix, label });
+          found.push({ sku: skuUpper, view: idx + 1, url, angle: suffix, label });
           console.log(`[PROBE] ✓ ${skuUpper} ${label}`);
+        } else {
+          console.log(`[PROBE] ✗ ${skuUpper} ${label} → ${r?.status}`);
         }
       } catch (e) { console.log(`[PROBE] ✗ ${skuUpper} ${label} → ${e.message}`); }
     }));
+    if (found.length === 0) {
+      failed.push({ sku: skuUpper, reason: 'No images found' });
+    } else {
+      results.push(...found);
+    }
   }));
 
   results.sort((a, b) => a.sku.localeCompare(b.sku) || a.view - b.view);
-  res.json({ total: results.length, results });
+  res.json({ total: results.length, results, failed });
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -235,12 +245,14 @@ router.post('/bulk-url', async (req, res) => {
     if (!skuLabel) return null;
 
     const configured = applyConfigToUrl(templateUrl, skuLabel);
-    const getUrl = configured
-      ? (suffix) => configured.replace(/_\d+/, `_${suffix}`)
-      : (suffix) => templateUrl.replace(/_\d+/, `_${suffix}`);
 
-    if (!configured) console.log(`[BULK] ${skuLabel} → SKU not parsed, using template as-is`);
-    else              console.log(`[BULK] ${skuLabel} → mat/mesh/frame applied`);
+    if (!configured) {
+      console.log(`[BULK] ${skuLabel} → SKU not recognised, skipping probe`);
+      return { sku: skuLabel, images: [], notRecognised: true };
+    }
+
+    console.log(`[BULK] ${skuLabel} → mat/mesh/frame applied`);
+    const getUrl = (suffix) => configured.replace(/_\d+/, `_${suffix}`);
 
     const images = [];
     await Promise.all(THREE_ANGLES.map(async ({ suffix, label }, idx) => {
