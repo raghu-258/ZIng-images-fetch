@@ -12,22 +12,21 @@ const THREE_ANGLES = [
 /* ─── SKU parsers ─── */
 
 function parseS11Config(sku) {
-  // S{model}C{MESH_3chars}{MAT}X  e.g. S111CN74VN39X
-  const m = sku.toUpperCase().match(/^S\d+C([A-Z\d]{3})([A-Z\d]+)X/);
+  // S{model}{frame}{mesh: letter+2digits}{mat: alphanumeric}X
+  // e.g. S111CN74VN39X, S113BN01PS16X
+  const m = sku.toUpperCase().match(/^S\d+([A-Z])([A-Z]\d{2})([A-Z\d]+)X/);
   if (!m) return null;
-  const frameChar = sku.toUpperCase()[3]; // position 3 = frame letter
-  const frameMap  = { B: 'b', C: 'c', D: 'd' };
   return {
-    frame: frameMap[frameChar] || 'c',
-    mesh:  m[1].toLowerCase(),
-    mat:   m[2].toLowerCase(),
+    frame: m[1].toLowerCase(),   // B → b, C → c, D → d
+    mesh:  m[2].toLowerCase(),   // N74, N01
+    mat:   m[3].toLowerCase(),   // VN39, PS16, CD36
   };
 }
 
 function parseLibertyConfig(sku) {
-  // L{num}{frame}{mesh_letter+2digits}{mat_2letters+2digits}X
-  // e.g. L113A N10 ST44 X...
-  const m = sku.toUpperCase().match(/^L\d+([A-Z])([A-Z]\d{2})([A-Z]{2}\d{2})X/);
+  // L{num}{frame}{mesh: letter+2digits}{mat: alphanumeric}X
+  // e.g. L113AM10GU11X, L313BM14O020X
+  const m = sku.toUpperCase().match(/^L\d+([A-Z])([A-Z]\d{2})([A-Z\d]+)X/);
   if (!m) return null;
   return {
     frame: m[1].toLowerCase(),
