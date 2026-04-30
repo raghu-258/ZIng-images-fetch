@@ -381,6 +381,20 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
         </div>
       </div>
 
+      <!-- Multi-product alt-text editor — shown after multi-product probe -->
+      <div id="multi-alt-section" style="display:none">
+        <div class="box" style="margin-bottom:16px">
+          <div class="box-title"><span class="dot y"></span> Alt Text Editor — Multi-Product
+            <span style="margin-left:auto;font-size:10px;color:var(--t3);font-weight:400">Type a base name — views are auto-labelled -1 -2 -3</span>
+          </div>
+          <div id="multi-alt-list" style="display:flex;flex-direction:column;gap:12px"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <button class="btn btn-green" onclick="downloadMultiSheet()">⬇ Download Sheet</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearMultiResults()" style="color:var(--red);border-color:rgba(255,77,109,0.3)">✕ Clear multi results</button>
+        </div>
+      </div>
+
       <!-- Standard download (from SKU probe / URL probe) -->
       <div class="box">
         <div class="box-title"><span class="dot y"></span> Download</div>
@@ -1357,6 +1371,8 @@ async function runUrlProbe() {
 let bulkUrlLocked   = false;
 let S_bulkResults   = [];   // [{ sku, images:[{url,angle,label,view}] }]
 let S_bulkAltTexts  = {};   // { sku: altBase }
+let S_multiResults  = [];   // [{ sku, images:[{url,angle,label,view}] }]
+let multiAltTexts   = {};   // { sku: altBase }
 
 function updateBulkLock() {
   const btn   = document.getElementById('bulk-lock-btn');
@@ -1648,6 +1664,119 @@ function renderMultiList() {
   `).join('');
 }
 
+function renderMultiAltEditor() {
+  const section = document.getElementById('multi-alt-section');
+  const list    = document.getElementById('multi-alt-list');
+  if (!section || !list || !S_multiResults.length) return;
+
+  section.style.display = 'block';
+  list.innerHTML = S_multiResults.map((product, pi) => {
+    if (!product.images.length) {
+      const reason = product.error || 'No images found — check the URL or SKU format';
+      return `
+        <div style="background:rgba(255,77,109,0.05);border:1px solid rgba(255,77,109,0.3);border-radius:var(--r2);padding:12px 14px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:16px;color:var(--red)">✗</span>
+          <div>
+            <div style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--red)">${product.sku}</div>
+            <div style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:2px">${reason}</div>
+          </div>
+        </div>`;
+    }
+
+    const altBase = multiAltTexts[product.sku] || '';
+    const previewHtml = altBase
+      ? product.images.map((img, vi) =>
+          `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${altBase}-${vi+1}</span>`).join(' ')
+      : `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">type alt text to preview labels</span>`;
+
+    const thumbsHtml = product.images.map((img, vi) => `
+      <div style="flex:1;min-width:0">
+        <div style="background:#fff;border-radius:6px;overflow:hidden;aspect-ratio:1;margin-bottom:4px">
+          <img src="${img.url}" style="width:100%;height:100%;object-fit:contain;display:block" loading="lazy" alt="${img.label}">
+        </div>
+        <div style="font-size:9px;color:var(--t3);font-family:var(--mono);text-align:center">${img.label}</div>
+        <div id="multi-alt-label-${pi}-${vi}" style="font-size:9px;color:var(--green);font-family:var(--mono);text-align:center;margin-top:2px">${altBase ? altBase+'-'+(vi+1) : ''}</div>
+      </div>`).join('');
+
+    return `
+      <div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;display:flex;gap:14px;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--text);margin-bottom:10px">${product.sku}</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px">${thumbsHtml}</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" value="${altBase.replace(/"/g,'&quot;')}"
+              placeholder="e.g. PA-black-GU11"
+              style="flex:1;min-width:160px;padding:6px 9px;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s"
+              onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'"
+              oninput="onMultiAltInput(${pi},'${product.sku.replace(/'/g,"\\'")}',this.value)">
+            <div id="multi-alt-preview-${pi}" style="display:flex;gap:4px;flex-wrap:wrap">${previewHtml}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function onMultiAltInput(pi, sku, val) {
+  multiAltTexts[sku] = val.trim();
+  const preview = document.getElementById(`multi-alt-preview-${pi}`);
+  if (preview) {
+    if (val.trim()) {
+      preview.innerHTML = [1,2,3].map(n =>
+        `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${val.trim()}-${n}</span>`
+      ).join(' ');
+    } else {
+      preview.innerHTML = `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">type alt text to preview labels</span>`;
+    }
+  }
+  const product = S_multiResults[pi];
+  if (product) {
+    product.images.forEach((img, vi) => {
+      const el = document.getElementById(`multi-alt-label-${pi}-${vi}`);
+      if (el) el.textContent = val.trim() ? val.trim() + '-' + (vi+1) : '';
+    });
+  }
+  debouncedSave();
+}
+
+async function downloadMultiSheet() {
+  if (!S_multiResults.length) { showToast('No multi-product results to download'); return; }
+
+  const rows = S_multiResults.flatMap((product, pi) =>
+    product.images.map((img, vi) => {
+      const altBase = multiAltTexts[product.sku] || '';
+      return {
+        sku:     product.sku,
+        view:    img.view,
+        url:     img.url,
+        altText: altBase ? `${altBase}-${vi+1}` : '',
+        label:   altBase ? `${altBase}-${vi+1}` : img.label,
+      };
+    })
+  );
+
+  try {
+    const res = await fetch('/api/sheet/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: rows }),
+    });
+    const blob = await res.blob();
+    dlBlob(blob, 'humanscale-multi-images.xlsx');
+    document.getElementById('nav-2').classList.add('done');
+    showToast('⬇ Sheet downloaded');
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+function clearMultiResults() {
+  S_multiResults = [];
+  multiAltTexts  = {};
+  document.getElementById('multi-alt-section').style.display = 'none';
+  document.getElementById('multi-alt-list').innerHTML = '';
+  showToast('Multi results cleared');
+  debouncedSave();
+}
+
 async function runMultiProbe() {
   const filled = multiProducts.filter(p => p.url.trim() || p.sku.trim());
   if (!filled.length) { showToast('Add at least one product with a URL or SKU'); return; }
@@ -1669,7 +1798,9 @@ async function runMultiProbe() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
 
-    S.probeResults = data.products.flatMap(p => p.images);
+    S.probeResults  = data.products.flatMap(p => p.images);
+    S_multiResults  = data.products;
+    multiAltTexts   = {};
 
     const section = document.getElementById('multi-results-section');
     section.style.display = 'block';
@@ -1704,10 +1835,11 @@ async function runMultiProbe() {
 
     document.getElementById('st-found').textContent = data.total;
     document.getElementById('sheet-empty').style.display = 'none';
-    document.getElementById('sheet-ready').style.display = 'block';
+    document.getElementById('sheet-ready').style.display = 'none'; // multi uses its own download
     document.getElementById('nav-1').classList.add('done');
+    renderMultiAltEditor();
     logLine(`<span class="lg">✓ ${data.total} image(s) across ${data.products.length} product(s)</span>`, log);
-    showToast(`✓ ${data.total} images ready`);
+    showToast(`✓ ${data.total} images ready — go to Step 2 to add alt text`);
     saveSession();
   } catch(e) {
     logLine(`<span class="lr">✗ ${e.message}</span>`, log);
@@ -1747,6 +1879,8 @@ function saveSession() {
       bulkUrlLocked,
       bulkResults:     S_bulkResults,
       bulkAltTexts:    S_bulkAltTexts,
+      multiResults:    S_multiResults,
+      multiAltTexts:   multiAltTexts,
       navDone:     [1,2,3,4].filter(n => document.getElementById(`nav-${n}`)?.classList.contains('done')),
       stFound:     document.getElementById('st-found').textContent,
     }));
@@ -1812,6 +1946,11 @@ function loadSession() {
     renderBulkPreview();
     renderBulkAltEditor();
   }
+  if (session.multiResults && session.multiResults.length) {
+    S_multiResults = session.multiResults;
+    multiAltTexts  = session.multiAltTexts || {};
+    renderMultiAltEditor();
+  }
   if (session.probeMode) switchProbeMode(session.probeMode);
   if (session.panel)     goPanel(parseInt(session.panel));
 }
@@ -1823,6 +1962,9 @@ function resetSession() {
   S.jsonData = {}; S.localResults = []; S.localJsonData = {};
 
   multiProducts = []; renderMultiList();
+  S_multiResults = []; multiAltTexts = {};
+  const mas = document.getElementById('multi-alt-section'); if (mas) mas.style.display = 'none';
+  const mal = document.getElementById('multi-alt-list');    if (mal) mal.innerHTML = '';
   S_bulkResults = []; S_bulkAltTexts = {}; bulkUrlLocked = false;
   const btu = document.getElementById('bulk-template-url'); if (btu) btu.value = '';
   const bsi = document.getElementById('bulk-skus-input');   if (bsi) bsi.value = '';
