@@ -117,12 +117,14 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
 .lr{color:var(--red);}
 .ly{color:var(--yellow);}
 .ls{color:var(--shopify);}
-.img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;}
+.img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
 .img-card{background:var(--s2);border:1px solid var(--border);border-radius:10px;overflow:hidden;animation:fadeUp .2s ease both;}
 .img-card img{width:100%;aspect-ratio:1;object-fit:contain;background:#fff;display:block;}
 .img-card-info{padding:7px 8px;}
 .img-card-view{font-size:14px;font-weight:700;font-family:var(--mono);}
 .img-card-sku{font-size:9px;color:var(--t3);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;}
+.img-card-alt{width:100%;margin-top:5px;padding:4px 6px;background:var(--s3);border:1px solid var(--b2);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:9px;outline:none;transition:border .15s;box-sizing:border-box;}
+.img-card-alt:focus{border-color:var(--blue);}
 .dropzone{border:2px dashed var(--b2);border-radius:var(--r2);padding:32px;text-align:center;cursor:pointer;transition:all .15s;}
 .dropzone:hover,.dropzone.drag{border-color:var(--shopify);background:rgba(149,191,72,0.04);}
 .dropzone-icon{font-size:32px;margin-bottom:10px;opacity:0.3;}
@@ -392,6 +394,19 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
         <div style="display:flex;gap:10px;margin-bottom:16px">
           <button class="btn btn-green" onclick="downloadMultiSheet()">⬇ Download Sheet</button>
           <button class="btn btn-ghost btn-sm" onclick="clearMultiResults()" style="color:var(--red);border-color:rgba(255,77,109,0.3)">✕ Clear multi results</button>
+        </div>
+      </div>
+
+      <!-- SKU probe / URL probe alt-text editor -->
+      <div id="sku-alt-section" style="display:none">
+        <div class="box" style="margin-bottom:16px">
+          <div class="box-title">
+            <span class="dot y"></span> Alt Text Per SKU
+            <span id="sku-alt-count" style="color:var(--t3);font-weight:400;font-size:10px;margin-left:6px"></span>
+            <span style="margin-left:auto;font-size:10px;color:var(--t3);font-weight:400">Type a base name — views auto-labelled -1 -2 -3</span>
+          </div>
+          <div class="notice yellow" style="margin-bottom:12px">Each SKU's alt text applies to all its views. Example: <span style="font-family:var(--mono)">Standard GT-Umber</span> for all 3 views of that colour variant.</div>
+          <div id="sku-alt-list" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>
       </div>
 
@@ -745,7 +760,7 @@ async function runProbe() {
       S.probeResults.forEach((r, i) => {
         const c = document.createElement('div');
         c.className = 'img-card';
-        c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label || r.sku}"><div class="img-card-info"><div class="img-card-view">${r.label || ('View ' + r.view)}</div><div class="img-card-sku">${r.sku}</div></div>`;
+        c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label || r.sku}"><div class="img-card-info"><div class="img-card-view">${r.label || ('View ' + r.view)}</div><div class="img-card-sku">${r.sku}</div><input class="img-card-alt" data-idx="${i}" type="text" placeholder="Alt text base (auto-fills -1 -2 -3)…" value="${r.altText || ''}" oninput="updateProbeAlt(${i},this.value)"></div>`;
         grid.appendChild(c);
       });
       document.getElementById('probe-empty').style.display = 'none';
@@ -758,6 +773,8 @@ async function runProbe() {
     document.getElementById('nav-1').classList.add('done');
     document.getElementById('sheet-empty').style.display = 'none';
     document.getElementById('sheet-ready').style.display = 'block';
+    skuAltTexts = {};
+    renderSkuAltEditor();
     logLine(`<span class="lg">✓ ${data.total} image(s) found</span>`, log);
     if (data.failed && data.failed.length) {
       data.failed.forEach(f => {
@@ -774,6 +791,115 @@ async function runProbe() {
   }
 
   btn.disabled = false;
+}
+
+function updateProbeAlt(idx, val) {
+  if (!S.probeResults[idx]) return;
+  const base   = val.trim();
+  const sku    = S.probeResults[idx].sku;
+  const skuKey = sku || '__url__';
+  // auto-fill all images of the same SKU with base-1, base-2, base-3
+  const group = S.probeResults
+    .map((r, i) => ({ r, i }))
+    .filter(({ r }) => sku ? r.sku === sku : !r.sku);
+  group.forEach(({ r, i: sibIdx }, order) => {
+    r.altText = base ? `${base}-${order + 1}` : '';
+    const el = document.querySelector(`.img-card-alt[data-idx="${sibIdx}"]`);
+    if (el) el.value = r.altText;
+  });
+  // sync Panel 2 per-SKU editor
+  skuAltTexts[skuKey] = base;
+  const safeId = skuKey.replace(/[^a-zA-Z0-9]/g, '_');
+  const p2input = document.querySelector(`#sku-alt-list input[oninput*="'${skuKey.replace(/'/g,"\\'")}'"]`);
+  if (p2input) p2input.value = base;
+  const prevEl = document.getElementById(`sku-alt-prev-${safeId}`);
+  if (prevEl) {
+    if (base) {
+      prevEl.innerHTML = `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">→</span> ` +
+        group.map((_, vi) =>
+          `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${base}-${vi+1}</span>`
+        ).join(' ');
+      prevEl.style.marginTop = '6px';
+    } else {
+      prevEl.innerHTML = '';
+      prevEl.style.marginTop = '0';
+    }
+  }
+  debouncedSave();
+}
+
+function renderSkuAltEditor() {
+  const section = document.getElementById('sku-alt-section');
+  const list    = document.getElementById('sku-alt-count');
+  const listEl  = document.getElementById('sku-alt-list');
+  if (!section || !listEl || !S.probeResults.length) return;
+
+  // group by sku (or '__url__' for URL-probe results with no sku)
+  const groupMap = {};
+  S.probeResults.forEach(r => {
+    const key = r.sku || '__url__';
+    if (!groupMap[key]) groupMap[key] = [];
+    groupMap[key].push(r);
+  });
+  const skuKeys = Object.keys(groupMap);
+
+  section.style.display = 'block';
+  if (list) list.textContent = `— ${skuKeys.length} SKU${skuKeys.length !== 1 ? 'S' : ''}`;
+
+  listEl.innerHTML = skuKeys.map(sku => {
+    const images  = groupMap[sku];
+    const altBase = skuAltTexts[sku] || '';
+    const safeId  = sku.replace(/[^a-zA-Z0-9]/g, '_');
+    const pills   = altBase
+      ? images.map((img, vi) =>
+          `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${altBase}-${vi+1}</span>`).join(' ')
+      : '';
+
+    return `
+      <div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--text);white-space:nowrap;flex:none">${sku === '__url__' ? 'URL Probe' : sku}</span>
+          <input type="text" value="${altBase.replace(/"/g,'&quot;')}"
+            placeholder="e.g. Standard GT-Umber"
+            style="flex:1;padding:6px 9px;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .15s"
+            onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'"
+            oninput="onSkuAltInput('${sku.replace(/'/g,"\\'")}',this.value)">
+          <span style="font-size:9px;color:var(--t3);font-family:var(--mono);flex:none">${images.length} v</span>
+        </div>
+        <div id="sku-alt-prev-${safeId}" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:${pills ? '6px' : '0'};padding-left:2px">
+          ${pills ? `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">→</span> ${pills}` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function onSkuAltInput(sku, val) {
+  skuAltTexts[sku] = val.trim();
+  // update S.probeResults and Panel 1 card inputs
+  const group = S.probeResults
+    .map((r, i) => ({ r, i }))
+    .filter(({ r }) => (r.sku || '__url__') === sku);
+  group.forEach(({ r, i: sibIdx }, order) => {
+    r.altText = val.trim() ? `${val.trim()}-${order + 1}` : '';
+    const el = document.querySelector(`.img-card-alt[data-idx="${sibIdx}"]`);
+    if (el) el.value = r.altText;
+  });
+  // update Panel 2 preview pills
+  const safeId = sku.replace(/[^a-zA-Z0-9]/g, '_');
+  const prevEl = document.getElementById(`sku-alt-prev-${safeId}`);
+  if (prevEl) {
+    if (val.trim()) {
+      prevEl.innerHTML = `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">→</span> ` +
+        group.map((_, vi) =>
+          `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${val.trim()}-${vi+1}</span>`
+        ).join(' ');
+      prevEl.style.marginTop = '6px';
+    } else {
+      prevEl.innerHTML = '';
+      prevEl.style.marginTop = '0';
+    }
+  }
+  debouncedSave();
 }
 
 async function downloadSheet() {
@@ -1345,10 +1471,10 @@ async function runUrlProbe() {
     const grid = document.getElementById('img-grid');
     grid.innerHTML = '';
     grid.style.display = 'grid';
-    data.results.forEach(r => {
+    data.results.forEach((r, i) => {
       const c = document.createElement('div');
       c.className = 'img-card';
-      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label}"><div class="img-card-info"><div class="img-card-view">${r.label}</div><div class="img-card-sku">${r.angle}</div></div>`;
+      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label}"><div class="img-card-info"><div class="img-card-view">${r.label}</div><div class="img-card-sku">${r.angle}</div><input class="img-card-alt" data-idx="${i}" type="text" placeholder="Alt text base (auto-fills -1 -2 -3)…" value="${r.altText || ''}" oninput="updateProbeAlt(${i},this.value)"></div>`;
       grid.appendChild(c);
     });
 
@@ -1357,6 +1483,8 @@ async function runUrlProbe() {
     document.getElementById('nav-1').classList.add('done');
     document.getElementById('sheet-empty').style.display = 'none';
     document.getElementById('sheet-ready').style.display = 'block';
+    skuAltTexts = {};
+    renderSkuAltEditor();
     logLine(`<span class="lg">✓ ${data.total}/3 angle(s) verified</span>`, log);
     showToast(`✓ ${data.total} angle image(s) ready`);
     saveSession();
@@ -1373,6 +1501,7 @@ let S_bulkResults   = [];   // [{ sku, images:[{url,angle,label,view}] }]
 let S_bulkAltTexts  = {};   // { sku: altBase }
 let S_multiResults  = [];   // [{ sku, images:[{url,angle,label,view}] }]
 let multiAltTexts   = {};   // { sku: altBase }
+let skuAltTexts     = {};   // { sku: altBase } for SKU probe / URL probe Panel 2 editor
 
 function updateBulkLock() {
   const btn   = document.getElementById('bulk-lock-btn');
@@ -1455,6 +1584,7 @@ async function runBulkProbe() {
     document.getElementById('nav-2').classList.add('done');
     document.getElementById('sheet-empty').style.display = 'none';
     document.getElementById('sheet-ready').style.display = 'none'; // bulk uses its own download
+    document.getElementById('sku-alt-section').style.display = 'none';
     saveSession();
   } catch(e) {
     logLine(`<span class="lr">✗ ${e.message}</span>`, log);
@@ -1467,7 +1597,7 @@ function renderBulkPreview() {
   const section = document.getElementById('bulk-results-preview');
   if (!section || !S_bulkResults.length) return;
   section.style.display = 'block';
-  section.innerHTML = S_bulkResults.map(product => {
+  section.innerHTML = S_bulkResults.map((product, pi) => {
     const imagesHtml = product.images.length
       ? product.images.map(img => `
           <div style="background:var(--s1)">
@@ -1482,6 +1612,11 @@ function renderBulkPreview() {
       : `<div style="padding:20px;color:var(--red);font-family:var(--mono);font-size:11px;grid-column:1/-1">✗ No images found</div>`;
 
     const noImages = product.images.length === 0;
+    const altBase  = S_bulkAltTexts[product.sku] || '';
+    const bulkP1Pills = altBase
+      ? product.images.map((img, vi) => `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 6px;border-radius:3px">${altBase}-${vi+1}</span>`).join(' ')
+      : '<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">→ auto-fills -1 -2 -3</span>';
+
     return `
       <div style="margin-bottom:10px;background:var(--s1);border:1px solid ${noImages ? 'rgba(255,77,109,0.4)' : 'var(--border)'};border-radius:12px;overflow:hidden;animation:fadeUp .2s ease both">
         <div style="padding:10px 14px;border-bottom:1px solid ${noImages ? 'rgba(255,77,109,0.25)' : 'var(--border)'};display:flex;align-items:center;gap:10px;${noImages ? 'background:rgba(255,77,109,0.05)' : ''}">
@@ -1492,6 +1627,15 @@ function renderBulkPreview() {
             : product.images.length === 3 ? '<span style="font-size:9px;color:var(--green);font-family:var(--mono);margin-left:auto">✓ complete</span>' : ''}
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)">${imagesHtml}</div>
+        ${!noImages ? `
+        <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <input type="text" value="${altBase.replace(/"/g,'&quot;')}"
+            placeholder="Alt text base (auto-fills -1 -2 -3)…"
+            style="flex:1;min-width:140px;padding:5px 8px;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:10px;outline:none;transition:border .15s"
+            onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'"
+            oninput="onBulkAltInput(${pi},'${product.sku.replace(/'/g,"\\'")}',this.value)">
+          <div id="bulk-p1-prev-${pi}" style="display:flex;gap:4px;flex-wrap:wrap">${bulkP1Pills}</div>
+        </div>` : ''}
       </div>`;
   }).join('');
 }
@@ -1552,17 +1696,20 @@ function renderBulkAltEditor() {
 
 function onBulkAltInput(pi, sku, val) {
   S_bulkAltTexts[sku] = val.trim();
-  // update label previews
+  const filledPills = [1,2,3].map(n =>
+    `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${val.trim()}-${n}</span>`
+  ).join(' ');
+
   const preview = document.getElementById(`alt-preview-${pi}`);
-  if (preview) {
-    if (val.trim()) {
-      preview.innerHTML = [1,2,3].map(n =>
-        `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${val.trim()}-${n}</span>`
-      ).join(' ');
-    } else {
-      preview.innerHTML = `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">type alt text to preview labels</span>`;
-    }
-  }
+  if (preview) preview.innerHTML = val.trim()
+    ? filledPills
+    : `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">type alt text to preview labels</span>`;
+
+  const p1prev = document.getElementById(`bulk-p1-prev-${pi}`);
+  if (p1prev) p1prev.innerHTML = val.trim()
+    ? filledPills
+    : '<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">→ auto-fills -1 -2 -3</span>';
+
   const product = S_bulkResults[pi];
   if (product) {
     product.images.forEach((img, vi) => {
@@ -1718,16 +1865,18 @@ function renderMultiAltEditor() {
 
 function onMultiAltInput(pi, sku, val) {
   multiAltTexts[sku] = val.trim();
+  const pillsHtml = n => `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${val.trim()}-${n}</span>`;
+  const emptyMsg  = `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">type alt text to preview labels</span>`;
+  const filledHtml = val.trim() ? [1,2,3].map(pillsHtml).join(' ') : emptyMsg;
+
   const preview = document.getElementById(`multi-alt-preview-${pi}`);
-  if (preview) {
-    if (val.trim()) {
-      preview.innerHTML = [1,2,3].map(n =>
-        `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 7px;border-radius:3px">${val.trim()}-${n}</span>`
-      ).join(' ');
-    } else {
-      preview.innerHTML = `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">type alt text to preview labels</span>`;
-    }
-  }
+  if (preview) preview.innerHTML = filledHtml;
+
+  const p1prev = document.getElementById(`multi-p1-prev-${pi}`);
+  if (p1prev) p1prev.innerHTML = val.trim()
+    ? [1,2,3].map(n => `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 6px;border-radius:3px">${val.trim()}-${n}</span>`).join(' ')
+    : '<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">→ auto-fills -1 -2 -3</span>';
+
   const product = S_multiResults[pi];
   if (product) {
     product.images.forEach((img, vi) => {
@@ -1808,7 +1957,7 @@ async function runMultiProbe() {
     document.getElementById('img-grid').style.display = 'none';
     document.getElementById('probe-empty').style.display = 'none';
 
-    data.products.forEach(product => {
+    data.products.forEach((product, pi) => {
       const wrap = document.createElement('div');
       wrap.style.cssText = 'margin-bottom:14px;background:var(--s1);border:1px solid var(--border);border-radius:14px;overflow:hidden;animation:fadeUp .2s ease both';
 
@@ -1823,19 +1972,34 @@ async function runMultiProbe() {
             </div>`).join('')
         : `<div style="padding:24px;color:var(--red);font-family:var(--mono);font-size:11px;grid-column:1/-1">✗ No images found — ${product.error || 'check the URL or SKU format'}</div>`;
 
+      const altBase = multiAltTexts[product.sku] || '';
+      const multiP1Pills = altBase
+        ? product.images.map((img, vi) => `<span style="font-size:9px;font-family:var(--mono);color:var(--t3);background:var(--s3);padding:2px 6px;border-radius:3px">${altBase}-${vi+1}</span>`).join(' ')
+        : '<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">→ auto-fills -1 -2 -3</span>';
+
       wrap.innerHTML = `
         <div style="padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
           <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:var(--text)">${product.sku}</span>
           <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${product.images.length}/3 views</span>
           ${product.images.length === 3 ? '<span style="font-size:10px;color:var(--green);font-family:var(--mono);margin-left:auto">✓ complete</span>' : ''}
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)">${imagesHtml}</div>`;
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)">${imagesHtml}</div>
+        ${product.images.length ? `
+        <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <input type="text" value="${altBase.replace(/"/g,'&quot;')}"
+            placeholder="Alt text base (auto-fills -1 -2 -3)…"
+            style="flex:1;min-width:140px;padding:5px 8px;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:10px;outline:none;transition:border .15s"
+            onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='var(--b2)'"
+            oninput="onMultiAltInput(${pi},'${product.sku.replace(/'/g,"\\'")}',this.value)">
+          <div id="multi-p1-prev-${pi}" style="display:flex;gap:4px;flex-wrap:wrap">${multiP1Pills}</div>
+        </div>` : ''}`;
       section.appendChild(wrap);
     });
 
     document.getElementById('st-found').textContent = data.total;
     document.getElementById('sheet-empty').style.display = 'none';
     document.getElementById('sheet-ready').style.display = 'none'; // multi uses its own download
+    document.getElementById('sku-alt-section').style.display = 'none';
     document.getElementById('nav-1').classList.add('done');
     renderMultiAltEditor();
     logLine(`<span class="lg">✓ ${data.total} image(s) across ${data.products.length} product(s)</span>`, log);
@@ -1881,6 +2045,7 @@ function saveSession() {
       bulkAltTexts:    S_bulkAltTexts,
       multiResults:    S_multiResults,
       multiAltTexts:   multiAltTexts,
+      skuAltTexts:     skuAltTexts,
       navDone:     [1,2,3,4].filter(n => document.getElementById(`nav-${n}`)?.classList.contains('done')),
       stFound:     document.getElementById('st-found').textContent,
     }));
@@ -1911,16 +2076,18 @@ function loadSession() {
     const grid = document.getElementById('img-grid');
     grid.innerHTML = '';
     grid.style.display = 'grid';
-    S.probeResults.forEach(r => {
+    S.probeResults.forEach((r, i) => {
       const c = document.createElement('div');
       c.className = 'img-card';
-      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label || r.sku || ''}"><div class="img-card-info"><div class="img-card-view">${r.label || ('View ' + r.view)}</div><div class="img-card-sku">${r.sku || r.angle || ''}</div></div>`;
+      c.innerHTML = `<img src="${r.url}" loading="lazy" alt="${r.label || r.sku || ''}"><div class="img-card-info"><div class="img-card-view">${r.label || ('View ' + r.view)}</div><div class="img-card-sku">${r.sku || r.angle || ''}</div><input class="img-card-alt" data-idx="${i}" type="text" placeholder="Alt text base (auto-fills -1 -2 -3)…" value="${r.altText || ''}" oninput="updateProbeAlt(${i},this.value)"></div>`;
       grid.appendChild(c);
     });
     document.getElementById('probe-empty').style.display = 'none';
     document.getElementById('st-found').textContent = session.stFound || S.probeResults.length;
     document.getElementById('sheet-empty').style.display = 'none';
     document.getElementById('sheet-ready').style.display = 'block';
+    skuAltTexts = session.skuAltTexts || {};
+    renderSkuAltEditor();
   }
 
   if (Object.keys(S.jsonData).length) {
@@ -1965,6 +2132,8 @@ function resetSession() {
   S_multiResults = []; multiAltTexts = {};
   const mas = document.getElementById('multi-alt-section'); if (mas) mas.style.display = 'none';
   const mal = document.getElementById('multi-alt-list');    if (mal) mal.innerHTML = '';
+  skuAltTexts = {};
+  const sas = document.getElementById('sku-alt-section'); if (sas) sas.style.display = 'none';
   S_bulkResults = []; S_bulkAltTexts = {}; bulkUrlLocked = false;
   const btu = document.getElementById('bulk-template-url'); if (btu) btu.value = '';
   const bsi = document.getElementById('bulk-skus-input');   if (bsi) bsi.value = '';
