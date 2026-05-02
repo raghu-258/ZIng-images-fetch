@@ -35,10 +35,22 @@ function parseLibertyConfig(sku) {
   };
 }
 
+function parsePT1Config(sku) {
+  // PT{model}{frame}{mat: alphanumeric}X{options}
+  // e.g. PT11BST45XNSHNSC
+  const m = sku.toUpperCase().match(/^PT\d+([A-Z])([A-Z\d]+)X/);
+  if (!m) return null;
+  return {
+    frame: m[1].toLowerCase(),   // B → b
+    mat:   m[2].toLowerCase(),   // ST45 → st45
+  };
+}
+
 function parseSku(sku) {
   const u = sku.toUpperCase();
   if (u.startsWith('S11') || u.startsWith('S1')) return parseS11Config(u);
   if (u.startsWith('L'))                          return parseLibertyConfig(u);
+  if (u.startsWith('PT'))                         return parsePT1Config(u);
   return null;
 }
 
@@ -57,11 +69,22 @@ function applyConfigToUrl(templateUrl, sku) {
   url = url.replace(/(\$mat=)[a-z0-9]+/g,            `$1${cfg.mat}`);
   // mesh:      mesh-mesh-mesh1_xx  →  mesh-mesh-mesh1_{cfg.mesh}
   url = url.replace(/(mesh-mesh-mesh1_)[a-z0-9]+/g,  `$1${cfg.mesh}`);
-  // frame:     fram1_x / fram2_x  →  fram1_{cfg.frame} etc.
+  // frame:     fram1_x / fram2_x / fram3_x  →  fram{n}_{cfg.frame} etc.
   url = url.replace(/(fram1_)[a-z]/g,                `$1${cfg.frame}`);
   url = url.replace(/(fram2_)[a-z]/g,                `$1${cfg.frame}`);
+  url = url.replace(/(fram3_)[a-z]/g,                `$1${cfg.frame}`);
   return url;
 }
+
+/* Per-frame layer config for Path (PT) chairs.
+   Each frame code has different zo values, arm type, and base type. */
+const PT_FRAME_LAYER = {
+  // frame: { framZo, arm, armZo, armFramZo, cylFramZo, base, baseDrop, baseStat, baseFramZo }
+  b: { framZo: 3,  arm: '1', armZo: 22, armFramZo: 23, cylFramZo: 50, base: 'sb', baseDrop: 60, baseStat: 61, baseFramZo: 62 },
+  v: { framZo: 3,  arm: '1', armZo: 22, armFramZo: 23, cylFramZo: 50, base: 'sb', baseDrop: 60, baseStat: 61, baseFramZo: 62 },
+  a: { framZo: 5,  arm: '6', armZo: 27, armFramZo: 30, cylFramZo: 52, base: 'a',  baseDrop: 54, baseStat: 55, baseFramZo: 58 },
+  p: { framZo: 6,  arm: '6', armZo: 27, armFramZo: 31, cylFramZo: 53, base: 'a',  baseDrop: 54, baseStat: 55, baseFramZo: 59 },
+};
 
 /* Build a full render URL from scratch for S11 SKUs */
 function buildRenderUrl(sku, angle) {
@@ -82,6 +105,26 @@ function buildRenderUrl(sku, angle) {
       `root-stitches-fs-arms-1-mesh-mesh-mesh1_${cfg.mesh}$lt=SO$zo=101`,
     ];
     return `https://machinecore.thebigpicturemachine.com/Ziing3Server/Ziing3.aspx?req=render&humanscale-smart-s11TV3_${angle}&fmt=jpg&bgc=ffffff&size=734&${layers.map(l => `layer=${l}`).join('&')}`;
+  }
+  if (upper.startsWith('PT')) {
+    const cfg = parsePT1Config(upper);
+    if (!cfg) return null;
+    const fc = PT_FRAME_LAYER[cfg.frame];
+    if (!fc) return null;
+    const f = cfg.frame;
+    const layers = [
+      'root-seat-nst_stat$lt=SO$zo=2',
+      `root-seat-nst-fram1_${f}$lt=SO$zo=${fc.framZo}`,
+      `root-seat-nst-uphl1_up00$lt=RO$zo=7$mat=${cfg.mat}`,
+      `root-seat-nst-arm-${fc.arm}_stat$lt=SO$zo=${fc.armZo}`,
+      `root-seat-nst-arm-${fc.arm}-fram1_${f}$lt=SO$zo=${fc.armFramZo}`,
+      'root-seat-nst-cylinder-std_stat$lt=SO$zo=49',
+      `root-seat-nst-cylinder-std-fram2_${f}$lt=SO$zo=${fc.cylFramZo}`,
+      `root-seat-nst-cylinder-std-base-${fc.base}_drop$lt=SO$zo=${fc.baseDrop}`,
+      `root-seat-nst-cylinder-std-base-${fc.base}_stat$lt=SO$zo=${fc.baseStat}`,
+      `root-seat-nst-cylinder-std-base-${fc.base}-fram3_${f}$lt=SO$zo=${fc.baseFramZo}`,
+    ];
+    return `https://machinecore.thebigpicturemachine.com/Ziing3Server/Ziing3.aspx?req=render&humanscale-path-pt1_${angle}&fmt=jpg&bgc=ffffff&size=734&${layers.map(l => `layer=${l}`).join('&')}`;
   }
   return null;
 }

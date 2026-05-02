@@ -282,7 +282,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
           <div class="box-title"><span class="dot"></span> SKUs</div>
           <div class="field-full">
             <label>SKUs — one per line or comma separated</label>
-            <textarea class="big-textarea" id="sku-input" placeholder="S111BN43PS30XFSHNSC" oninput="debouncedSave()"></textarea>
+            <textarea class="big-textarea" id="sku-input" placeholder="S111BN43PS30XFSHNSC&#10;PT11BST45XNSHNSC" oninput="debouncedSave()"></textarea>
           </div>
           <div class="chips" id="chips"></div>
           <div class="btn-group">
@@ -297,7 +297,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);min-hei
           <div class="box-title"><span class="dot y"></span> Multi-Product — URL + SKU</div>
           <div class="notice yellow">
             <strong>Two modes per row:</strong><br>
-            · <strong>SKU only</strong> (leave URL blank) — for decodable chairs like Diffrient Smart (S11…). SKU builds the URL automatically.<br>
+            · <strong>SKU only</strong> (leave URL blank) — for Diffrient Smart (S11…) and Path (PT…). SKU builds the URL automatically.<br>
             · <strong>URL + SKU label</strong> — for other families (Liberty, Freedom, etc.). Paste the chair's render URL; SKU is used as a label only.
           </div>
           <div id="multi-product-list" style="margin-bottom:14px">
