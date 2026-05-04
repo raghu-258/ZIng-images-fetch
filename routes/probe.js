@@ -47,14 +47,14 @@ function parsePT1Config(sku) {
 }
 
 function parseW11Config(sku) {
-  // W{model}{frame}{mesh: letter+2digits}{mat: 1-2letters+2digits}{options}
-  // e.g. W11BM10PS37SHNSC
-  const m = sku.toUpperCase().match(/^W\d+([A-Z])([A-Z]\d{2})([A-Z]{1,2}\d{2})/);
+  // W{model}{frame}{mesh: letter+2digits}{mat: 1-2letters+2-3digits}{options}
+  // e.g. W11BM10PS37SHNSC, W11BM10O001SHNSC
+  const m = sku.toUpperCase().match(/^W\d+([A-Z])([A-Z]\d{2})([A-Z]{1,2}\d+)/);
   if (!m) return null;
   return {
     frame: m[1].toLowerCase(),   // B → b
     mesh:  m[2].toLowerCase(),   // M10 → m10
-    mat:   m[3].toLowerCase(),   // PS37 → ps37
+    mat:   m[3].toLowerCase(),   // PS37 → ps37, O001 → o001
   };
 }
 
