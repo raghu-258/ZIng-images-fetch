@@ -46,11 +46,24 @@ function parsePT1Config(sku) {
   };
 }
 
+function parseW11Config(sku) {
+  // W{model}{frame}{mesh: letter+2digits}{mat: 1-2letters+2digits}{options}
+  // e.g. W11BM10PS37SHNSC
+  const m = sku.toUpperCase().match(/^W\d+([A-Z])([A-Z]\d{2})([A-Z]{1,2}\d{2})/);
+  if (!m) return null;
+  return {
+    frame: m[1].toLowerCase(),   // B → b
+    mesh:  m[2].toLowerCase(),   // M10 → m10
+    mat:   m[3].toLowerCase(),   // PS37 → ps37
+  };
+}
+
 function parseSku(sku) {
   const u = sku.toUpperCase();
   if (u.startsWith('S11') || u.startsWith('S1')) return parseS11Config(u);
   if (u.startsWith('L'))                          return parseLibertyConfig(u);
   if (u.startsWith('PT'))                         return parsePT1Config(u);
+  if (u.startsWith('W'))                          return parseW11Config(u);
   return null;
 }
 
@@ -67,8 +80,10 @@ function applyConfigToUrl(templateUrl, sku) {
   let url = templateUrl;
   // material:  $mat=xx  →  $mat={cfg.mat}
   url = url.replace(/(\$mat=)[a-z0-9]+/g,            `$1${cfg.mat}`);
-  // mesh:      mesh-mesh-mesh1_xx  →  mesh-mesh-mesh1_{cfg.mesh}
+  // mesh (S11/Liberty): mesh-mesh-mesh1_xx  →  mesh-mesh-mesh1_{cfg.mesh}
   url = url.replace(/(mesh-mesh-mesh1_)[a-z0-9]+/g,  `$1${cfg.mesh}`);
+  // mesh (World/W):     mesh2_xx  →  mesh2_{cfg.mesh}
+  if (cfg.mesh) url = url.replace(/(mesh2_)[a-z0-9]+/g, `$1${cfg.mesh}`);
   // frame:     fram1_x / fram2_x / fram3_x  →  fram{n}_{cfg.frame} etc.
   url = url.replace(/(fram1_)[a-z]/g,                `$1${cfg.frame}`);
   url = url.replace(/(fram2_)[a-z]/g,                `$1${cfg.frame}`);
